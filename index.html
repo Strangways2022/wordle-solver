@@ -10,32 +10,31 @@
 <body>
   <header>
     <h1>Wordle Solver</h1>
-    <p>Enter guesses and feedback to narrow down possible solutions.</p>
+    <p>Enter a guess and feedback (use G/Y/X for green/yellow/gray).</p>
   </header>
 
   <section class="input">
-    <form id="guess-form">
-      <input type="text" id="guess" maxlength="5" placeholder="Enter 5-letter guess" required />
-      <select id="feedback" required>
-        <option value="pattern">Pattern (e.g., gY--y)</option>
-        <option value="correct">Correct (Green: exact word)</option>
-        <option value="present">Present (Yellow: letters appear somewhere)</option>
-        <option value="absent">Absent (Gray: letters not in word)</option>
-      </select>
-      <input type="text" id="pattern" maxlength="5" placeholder="Pattern: g,y,- (e.g., g-y--)" />
-      <button type="submit">Add Guess</button>
-    </form>
-    <p class="hint">
-      Pattern help: use <strong>g</strong> for green (exact), <strong>y</strong> for yellow (wrong place), <strong>-</strong> for gray (not present).
-    </p>
+    <div class="row">
+      <label for="guess">Guess</label>
+      <input type="text" id="guess" maxlength="5" placeholder="e.g., CRATE" />
+    </div>
+    <div class="row">
+      <label for="feedback">Feedback</label>
+      <input type="text" id="feedback" maxlength="5" placeholder="e.g., GYXGX" />
+      <small>Use <strong>G</strong>=green, <strong>Y</strong>=yellow, <strong>X</strong>=gray.</small>
+    </div>
+    <div class="actions">
+      <button id="submit-btn" type="button">Add Guess</button>
+      <button id="reset-btn" type="button">Reset</button>
+    </div>
   </section>
 
   <section class="status">
-    <h2>Guesses</h2>
-    <ul id="guess-list"></ul>
+    <p id="status">Waiting to load dictionary…</p>
+    <p><strong>Remaining:</strong> <span id="count">0</span></p>
 
     <h2>Possible Words</h2>
-    <div id="possible-words">Load a word list and add guesses.</div>
+    <ul id="possible-words"></ul>
   </section>
 
   <footer>
