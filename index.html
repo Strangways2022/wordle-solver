@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Wordle Solver - Enter guesses and feedback to narrow down possible solutions." />
   <title>Wordle Solver</title>
   style.css
+  script.js</script>
 </head>
 <body>
   <header>
@@ -14,14 +16,20 @@
 
   <section class="input">
     <form id="guess-form">
+      <label for="guess">Guess:</label>
       <input type="text" id="guess" maxlength="5" placeholder="Enter 5-letter guess" required />
+
+      <label for="feedback">Feedback:</label>
       <select id="feedback" required>
         <option value="pattern">Pattern (e.g., gY--y)</option>
         <option value="correct">Correct (Green: exact word)</option>
         <option value="present">Present (Yellow: letters appear somewhere)</option>
         <option value="absent">Absent (Gray: letters not in word)</option>
       </select>
+
+      <label for="pattern">Pattern:</label>
       <input type="text" id="pattern" maxlength="5" placeholder="Pattern: g,y,- (e.g., g-y--)" />
+
       <button type="submit">Add Guess</button>
     </form>
     <p class="hint">
@@ -40,7 +48,5 @@
   <footer>
     <small>© 2025 Wordle Solver</small>
   </footer>
-
-  script.js</script>
 </body>
 </html>
