@@ -1,4 +1,29 @@
-// UI & workflow
+document.addEventListener('DOMContentLoaded', () => {
+  const guessInput = document.getElementById('guess');
+  const feedbackInput = document.getElementById('feedback');
+  const submitBtn = document.getElementById('submit-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const listEl = document.getElementById('possible-words');
+  const countEl = document.getElementById('count');
+  const statusEl = document.getElementById('status');
+
+  const missing = [
+    ['#guess', guessInput],
+    ['#feedback', feedbackInput],
+    ['#submit-btn', submitBtn],
+    ['#reset-btn', resetBtn],
+    ['#possible-words', listEl],
+    ['#count', countEl],
+    ['#status', statusEl],
+  ].filter(([id, el]) => !el);
+
+  if (missing.length) {
+    alert('Page is missing required elements: ' + missing.map(([id]) => id).join(', '));
+    console.error('Missing required DOM elements:', missing.map(([id]) => id));
+    return;
+  }
+
+  // UI & workflow
 let candidates = [];            // Current filtered candidates
 let dictionary = [];            // Full dictionary (5-letter words)
 
