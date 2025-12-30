@@ -10,7 +10,7 @@
 <body>
   <header>
     <h1>Wordle Solver</h1>
-    <p>Enter a guess and feedback (use G/Y/X for green/yellow/gray).</p>
+    <p>Enter guess and feedback (use G/Y/X for green/yellow/gray).</p>
   </header>
 
   <section class="input">
@@ -18,11 +18,13 @@
       <label for="guess">Guess</label>
       <input type="text" id="guess" maxlength="5" placeholder="e.g., CRATE" />
     </div>
+
     <div class="row">
       <label for="feedback">Feedback</label>
       <input type="text" id="feedback" maxlength="5" placeholder="e.g., GYXGX" />
-      <small>Use <strong>G</strong>=green, <strong>Y</strong>=yellow, <strong>X</strong>=gray.</small>
+      <small>G = green, Y = yellow, X = gray</small>
     </div>
+
     <div class="actions">
       <button id="submit-btn" type="button">Add Guess</button>
       <button id="reset-btn" type="button">Reset</button>
