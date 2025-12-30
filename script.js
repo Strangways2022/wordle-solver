@@ -85,4 +85,105 @@ resetBtn.addEventListener('click', () => {
 
 // Load dictionary on page start
 loadDictionary();
+
+function countLetters(str) {
+  const map = {};
+  for (const ch of str) map[ch] = (map[ch] || 0) + 1;
+  return map;
+}
+
+/**
+ * Apply a single guess/feedback to filter the candidate list.
+ * Feedback: 5 chars using G (green), Y (yellow), X (gray).
+ * Wordle duplicate-letter rules are handled:
+ * - G: candidate[i] must equal guess[i].
+ * - Y: candidate must contain letter guess[i], but NOT at position i.
+ * - X: if the letter was never G/Y in the guess, total occurrence of that letter must be 0.
+ *       If the letter had some G/Y elsewhere, X means the candidate must NOT exceed the total
+ *       number of times the letter was confirmed by G/Y.
+ */
+function applyGuessToCandidates(guess, feedback, words) {
+  const guessArr = guess.split('');
+  const fbArr = feedback.split('');
+
+  // First pass: compute per-letter requirements from feedback
+  const requiredPositions = {}; // pos -> letter (greens)
+  const forbiddenPositions = {}; // pos -> Set of letters forbidden here (yellows)
+  const minLetterCounts = {}; // minimum occurrences due to Y+G
+  const maxLetterCounts = {}; // maximum occurrences due to X constraints
+
+  // Count Y/G occurrences per letter in this guess
+  const ygCounts = {};
+  for (let i = 0; i < 5; i++) {
+    const ch = guessArr[i];
+    const fb = fbArr[i];
+    if (fb === 'G') {
+      requiredPositions[i] = ch;
+      ygCounts[ch] = (ygCounts[ch] || 0) + 1;
+    } else if (fb === 'Y') {
+      // Yellow: letter must exist but not at this position
+      forbiddenPositions[i] = (forbiddenPositions[i] || new Set());
+      forbiddenPositions[i].add(ch);
+      ygCounts[ch] = (ygCounts[ch] || 0) + 1;
+    }
+  }
+
+  // For letters marked X, set max count to the Y+G count (if any), else 0
+  for (let i = 0; i < 5; i++) {
+    const ch = guessArr[i];
+    const fb = fbArr[i];
+    if (fb === 'X') {
+      const allowed = ygCounts[ch] || 0;
+      // If letter had no G/Y, it must be absent completely
+      maxLetterCounts[ch] = Math.max(maxLetterCounts[ch] ?? allowed, allowed);
+    }
+  }
+
+  // For letters with Y/G, set minimum counts
+  for (const [ch, cnt] of Object.entries(ygCounts)) {
+    minLetterCounts[ch] = Math.max(minLetterCounts[ch] ?? cnt, cnt);
+  }
+
+  // Now evaluate each candidate
+  return words.filter(candidate => {
+    // Quick format check
+    if (!/^[a-z]{5}$/.test(candidate)) return false;
+
+    // 1) Enforce greens (exact match at positions)
+    for (const [posStr, letter] of Object.entries(requiredPositions)) {
+      const pos = Number(posStr);
+      if (candidate[pos] !== letter) return false;
+    }
+
+    // 2) Enforce yellows: letter present somewhere but NOT at that position
+    for (let i = 0; i < 5; i++) {
+      if (fbArr[i] === 'Y') {
+        const ch = guessArr[i];
+        if (candidate[i] === ch) return false; // not allowed in same position
+        if (!candidate.includes(ch)) return false; // must be present elsewhere
+      }
+    }
+
+    // 3) Enforce gray with duplicate nuance via min/max counts
+    const candCounts = countLetters(candidate);
+
+    // Minimum counts from Y/G
+    for (const [ch, minCnt] of Object.entries(minLetterCounts)) {
+      if ((candCounts[ch] || 0) < minCnt) return false;
+    }
+
+    // Maximum counts from X
+    for (const [ch, maxCnt] of Object.entries(maxLetterCounts)) {
+      if ((candCounts[ch] || 0) > maxCnt) return false;
+    }
+
+    // 4) Additionally forbid yellow letters at their specific positions
+    for (let i = 0; i < 5; i++) {
+      const set = forbiddenPositions[i];
+      if (set && set.has(candidate[i])) return false;
+    }
+
+    return true;
+  });
+}
  
