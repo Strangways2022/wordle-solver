@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wordle Solver</title>
+  style.css
+</head>
+<body>
+  <header>
+    <h1>Wordle Solver</h1>
+    <p>Enter guesses and feedback to narrow down possible solutions.</p>
+  </header>
+
+  <section class="input">
+    <form id="guess-form">
+      <input type="text" id="guess" maxlength="5" placeholder="Enter 5-letter guess" required />
+      <select id="feedback" required>
+        <option value="pattern">Pattern (e.g., gY--y)</option>
+        <option value="correct">Correct (Green: exact word)</option>
+        <option value="present">Present (Yellow: letters appear somewhere)</option>
+        <option value="absent">Absent (Gray: letters not in word)</option>
+      </select>
+      <input type="text" id="pattern" maxlength="5" placeholder="Pattern: g,y,- (e.g., g-y--)" />
+      <button type="submit">Add Guess</button>
+    </form>
+    <p class="hint">
+      Pattern help: use <strong>g</strong> for green (exact), <strong>y</strong> for yellow (wrong place), <strong>-</strong> for gray (not present).
+    </p>
+  </section>
+
+  <section class="status">
+    <h2>Guesses</h2>
+    <ul id="guess-list"></ul>
+
+    <h2>Possible Words</h2>
+    <div id="possible-words">Load a word list and add guesses.</div>
+  </section>
+
+  <footer>
+    <small>© 2025 Wordle Solver</small>
+  </footer>
+
+  script.js</script>
+</body>
+</html>
