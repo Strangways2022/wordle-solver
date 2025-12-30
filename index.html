@@ -41,11 +41,21 @@
 
   <footer>
     <small>© 2025 Wordle Solver</small>
-  </footer>
   <script>
-  document.getElementById('submit-btn')?.addEventListener('click', function() {
-    alert('Inline handler: Submit clicked');
-  });
-  </script>
+  // Sanity: confirm the inline script runs
+  alert('Inline sanity check: bottom-of-body script is running');
+
+  // Get the button by its EXACT ID
+  const btn = document.getElementById('submit-btn');
+  if (!btn) {
+    alert('Inline handler: #submit-btn NOT found in the DOM');
+  } else {
+    // Add a click handler that must fire if the button is clicked
+    btn.addEventListener('click', function () {
+      alert('Inline handler: Submit clicked');
+    });
+    alert('Inline handler: attached to #submit-btn');
+  }
+</script>
 </body>
 </html>
