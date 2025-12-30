@@ -1,23 +1,20 @@
-// script.js — Wordle Solver (GitHub Pages friendly)
-// Turn on/off alert logs:
-const DEBUG_ALERTS = false; // set to true while debugging on Android
+// script.js — Wordle Solver for GitHub Pages
+// Toggle this to true while debugging on mobile (Android Chrome will show alerts)
+const DEBUG_ALERTS = false;
+function dbg(msg) { if (DEBUG_ALERTS) alert(msg); }
 
-function dbg(msg) {
-  if (DEBUG_ALERTS) alert(msg);
-}
-
-// Wrap everything to ensure DOM is ready
+// Run only after DOM is ready (defer in HTML ensures this fires after parsing)
 document.addEventListener('DOMContentLoaded', () => {
-  dbg('Page loaded: initializing Wordle Solver');
+  dbg('Initializing Wordle Solver…');
 
   // ----------------------------
   // App state
   // ----------------------------
-  let dictionary = []; // all 5-letter words
-  let candidates = []; // filtered candidates
+  let dictionary = [];   // All valid 5-letter words
+  let candidates = [];   // Current filtered candidates
 
   // ----------------------------
-  // DOM elements (must match index.html IDs)
+  // DOM elements (IDs must match index.html)
   // ----------------------------
   const guessInput     = document.getElementById('guess');
   const feedbackInput  = document.getElementById('feedback');
@@ -28,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusEl       = document.getElementById('status');
   const formEl         = document.getElementById('guess-form');
 
-  // Guard: ensure required elements exist
+  // Guard: ensure the page contains the required elements
   const missing = [
     ['#guess', guessInput],
     ['#feedback', feedbackInput],
@@ -42,34 +39,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (missing.length) {
     const msg = 'Missing required elements: ' + missing.map(([id]) => id).join(', ');
-    dbg(msg);
     if (statusEl) statusEl.textContent = msg;
     console.error(msg);
-    return;
+    dbg(msg);
+    return; // Stop: HTML must match IDs above
   }
 
-  // Safety: prevent form auto-submit
+  // Safety: prevent form auto-submit / reload
   formEl.addEventListener('submit', (e) => e.preventDefault());
 
-  // Disable buttons until dictionary loads
+  // Disable actions until dictionary loads
   submitBtn.disabled = true;
   resetBtn.disabled = true;
 
   // ----------------------------
-  // Dictionary loader (words.txt next to index.html)
+  // Dictionary loader (safe for GitHub Project Pages)
   // ----------------------------
   async function loadDictionary() {
     try {
       statusEl.textContent = 'Loading word list…';
-      dbg('Fetching ./words.txt …');
 
-      // Add a cache-buster in case Pages/browser caches aggressively
-      const res = await fetch(`./words.txt?ts=${Date.now()}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`Failed to load words.txt (HTTP ${res.status})`);
+      // Use RELATIVE path + cache-buster so it resolves under /wordle-solver/
+      const url = './words.txt?ts=' + Date.now();
+      const fullUrl = new URL(url, location.href).href;
+      dbg('Fetching: ' + fullUrl);
+
+      const t0 = performance.now();
+      const res = await fetch(url, { cache: 'no-store' });
+      const ms = Math.round(performance.now() - t0);
+
+      if (!res.ok) {
+        const msg = `Failed to load ${fullUrl} (HTTP ${res.status}) in ${ms} ms`;
+        statusEl.textContent = msg;
+        dbg(msg);
+        alert(msg); // visible on mobile
+        return;
+      }
 
       const text = await res.text();
-      dbg('words.txt fetched; parsing…');
 
+      // Normalize: keep only clean 5-letter [a-z]
       dictionary = text
         .split(/\r?\n/)
         .map(w => w.trim().toLowerCase())
@@ -77,17 +86,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       candidates = [...dictionary];
 
-      statusEl.textContent = `Loaded ${dictionary.length} words.`;
-      dbg(`Dictionary loaded: ${dictionary.length} words`);
+      statusEl.textContent = `Loaded ${dictionary.length} words in ${ms} ms.`;
+      dbg(statusEl.textContent);
 
       renderCandidates();
 
       submitBtn.disabled = false;
       resetBtn.disabled = false;
     } catch (err) {
-      const msg = `Error loading dictionary: ${err.message}. Ensure words.txt is next to index.html at ${location.pathname}`;
+      const msg = `Load error: ${err.message}`;
       statusEl.textContent = msg;
       dbg(msg);
+      alert(msg);
       console.error(err);
     }
   }
@@ -99,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     listEl.innerHTML = '';
     countEl.textContent = String(candidates.length);
 
-    // Render up to 200 items for responsiveness
+    // Limit to 200 for responsiveness
     const show = candidates.slice(0, 200);
     for (const w of show) {
       const li = document.createElement('li');
@@ -128,21 +138,21 @@ document.addEventListener('DOMContentLoaded', () => {
   submitBtn.addEventListener('click', () => {
     dbg('Submit clicked');
 
-    const guess = guessInput.value.trim().toLowerCase();
+    const guess    = guessInput.value.trim().toLowerCase();
     const feedback = feedbackInput.value.trim().toUpperCase();
 
     dbg(`Inputs: guess=${guess}, feedback=${feedback}`);
 
     const err = validateInputs(guess, feedback);
     if (err) {
-      dbg(`Validation error: ${err}`);
       alert(err);
+      dbg('Validation error: ' + err);
       return;
     }
     if (candidates.length === 0) {
       const msg = 'No candidates loaded. Did words.txt fail to load?';
-      dbg(msg);
       alert(msg);
+      dbg(msg);
       return;
     }
 
@@ -153,10 +163,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       statusEl.textContent = `Applied ${guess.toUpperCase()} / ${feedback}. Remaining: ${after}`;
       dbg(`Filter applied: ${before} → ${after}`);
+
       renderCandidates();
     } catch (e) {
-      dbg('Error applying guess; see console.');
-      console.error(e);
+      console.error('Error applying guess:', e);
       alert('Internal error applying guess.');
     }
   });
@@ -171,25 +181,33 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ----------------------------
-  // Filtering logic
+  // Filtering logic (Wordle rules)
   // ----------------------------
 
+  /**
+   * Apply a single guess+feedback across the candidate list.
+   * Feedback symbols:
+   *  - G: correct letter in correct position (green)
+   *  - Y: letter in word but wrong position (yellow)
+   *  - X: letter not in word (gray), with duplicate nuance:
+   *      If the letter had no G/Y in this guess => total allowed count is 0.
+   *      If the letter had some G/Y elsewhere => cap total count to the G+Y count.
+   */
   function applyGuessToCandidates(guess, feedback, words) {
-    // Feedback symbols: G (green), Y (yellow), X (gray)
     const gArr = guess.split('');
     const fArr = feedback.split('');
 
-    // Derived constraints
     const requiredPositions = {};   // pos -> letter (greens)
     const forbiddenPositions = {};  // pos -> Set(letter) forbidden here (yellows)
-    const minLetterCounts = {};     // minimum occurrences per letter (from total G+Y)
-    const maxLetterCounts = {};     // maximum occurrences per letter (from X caps)
+    const minLetterCounts = {};     // per-letter minimum occurrences (from total G+Y)
+    const maxLetterCounts = {};     // per-letter maximum occurrences (caps from X)
 
     // Count total Y+G per letter in this guess
     const ygCounts = {};
     for (let i = 0; i < 5; i++) {
       const ch = gArr[i];
       const fb = fArr[i];
+
       if (fb === 'G') {
         requiredPositions[i] = ch;
         ygCounts[ch] = (ygCounts[ch] || 0) + 1;
@@ -199,16 +217,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // For X: cap letter count to Y+G count (if any), else 0
+    // For X positions, cap letter count to the known Y+G count (if any), else 0
     for (let i = 0; i < 5; i++) {
       const ch = gArr[i];
       if (fArr[i] === 'X') {
-        const allowed = ygCounts[ch] || 0; // if none G/Y, cap is 0
+        const allowed = ygCounts[ch] || 0;
         maxLetterCounts[ch] = Math.max(maxLetterCounts[ch] ?? allowed, allowed);
       }
     }
 
-    // Min counts from Y/G totals
+    // Minimum counts come from total Y+G for each letter
     for (const [ch, cnt] of Object.entries(ygCounts)) {
       minLetterCounts[ch] = Math.max(minLetterCounts[ch] ?? cnt, cnt);
     }
@@ -223,22 +241,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     return words.filter(candidate => {
-      // Greens: exact match at positions
+      // 1) Greens: must match at those positions
       for (const [posStr, letter] of Object.entries(requiredPositions)) {
         const pos = Number(posStr);
         if (candidate[pos] !== letter) return false;
       }
 
-      // Yellows: letter present but NOT at same position
+      // 2) Yellows: must be present somewhere but NOT at that position
       for (let i = 0; i < 5; i++) {
         if (fArr[i] === 'Y') {
           const ch = gArr[i];
-          if (candidate[i] === ch) return false;
-          if (!candidate.includes(ch)) return false;
+          if (candidate[i] === ch) return false;       // not allowed at same position
+          if (!candidate.includes(ch)) return false;    // must exist elsewhere
         }
       }
 
-      // Count constraints (min/max per letter)
+      // 3) Count constraints: enforce min (Y/G) and max (X caps)
       const candCounts = countLetters(candidate);
       for (const [ch, minCnt] of Object.entries(minLetterCounts)) {
         if ((candCounts[ch] || 0) < minCnt) return false;
@@ -247,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if ((candCounts[ch] || 0) > maxCnt) return false;
       }
 
-      // Additionally forbid yellow letters at their specific positions
+      // 4) Additional yellow position forbiddance
       for (let i = 0; i < 5; i++) {
         const set = forbiddenPositions[i];
         if (set && set.has(candidate[i])) return false;
