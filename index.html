@@ -1,3 +1,4 @@
+ 
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,16 +7,13 @@
   <title>Wordle Solver</title>
   <meta name="description" content="Enter a guess and Wordle-style feedback (G/Y/X) to narrow down 5-letter word candidates." />
 
-  <!-- Project site CSS: prefer relative path or absolute URL including /wordle-solver/ -->
-  <!-- Use ONE of the following hrefs and keep the cache-buster -->
-
-  <!-- Option A (recommended for project pages): relative path -->
+  <!-- CSS: choose ONE (relative is recommended for project pages) -->
   ./style.css?v=20251231
+  <!-- Or use absolute:
+  https://strangways2022.github.io/wordle-solver/style.css?v=20251231
+  -->
 
-  <!-- Option B (absolute URL): -->
-  <!-- https://strangways2022.github.io/wordle-solver/style.css?v=20251231 -->
-
-  <!-- Minimal built-in styles (optional if you have style.css) -->
+  <!-- Minimal built-in styles (kept so the page looks okay even if style.css fails) -->
   <style>
     :root { color-scheme: light dark; --bg:#0b0c10; --fg:#e9ecef; --muted:#9aa0a6; --accent:#4caf50; --danger:#ef4444; --border:#2b2f36; }
     body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; line-height:1.5; padding:2rem 1rem; background:#111827; color:#e5e7eb; }
@@ -38,11 +36,27 @@
     ul#possible-words li { background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:.4rem .5rem; text-transform:lowercase; letter-spacing:.05em; }
     footer { max-width:720px; margin:1rem auto 0; color:#9aa0a6; text-align:center; }
     .hint { color:#9aa0a6; margin-top:.25rem; }
-    /* Diagnostic banner styles */
-    #diag { padding:.5rem .75rem; border-radius:8px; margin:.75rem 0; }
+
+    /* Diagnostic banner */
+    #diag { padding:.6rem .8rem; border-radius:8px; margin:.75rem 0; }
     #diag.ok { background:#e8f5e9; color:#1b5e20; }
     #diag.err { background:#ffebee; color:#b71c1c; }
   </style>
+
+  <!-- Show runtime errors visibly on mobile -->
+  <script>
+    window.onerror = function (msg, src, line, col) {
+      const box = document.getElementById("diag");
+      if (box) {
+        box.className = "err";
+        box.textContent = "❌ Runtime error: " + msg +
+          (src ? " at " + src : "") +
+          (line ? " (" + line + ":" + col + ")" : "");
+      }
+      alert("Error: " + msg);
+      console.log("Error details:", { msg, src, line, col });
+    };
+  </script>
 </head>
 <body>
   <header>
@@ -95,7 +109,7 @@
 
     <!-- Status + Results -->
     <section class="card status" aria-live="polite">
-      <div id="diag" class="">⏳ Checking external script load…</div>
+      <div id="diag">⏳ Checking external script load…</div>
       <p id="status">Loading word list…</p>
       <p><strong>Remaining:</strong> <span id="count" class="count">0</span></p>
 
@@ -108,7 +122,7 @@
     <small>© 2025 Wordle Solver</small>
   </footer>
 
-  <!-- Inline test so you can see something immediately -->
+  <!-- Inline test so you can see something immediately on Android -->
   <script>
     alert('Inline test: HTML parsed and inline script running.');
     const btn = document.getElementById('submit-btn');
@@ -116,13 +130,11 @@
     btn && btn.addEventListener('click', () => alert('Inline test: Submit clicked'));
   </script>
 
-  <!-- External JS: prefer relative path for project pages; keep cache-buster -->
-  <!-- Option A (recommended): -->
+  <!-- External JS include (choose ONE). Keep the cache-buster and bump it when you update -->
   ./script.js?v=20251231
   </script>
 
-  <!-- Option B (absolute URL). Use this instead of Option A if you prefer: -->
-  <!--
+  <!-- Or absolute URL:
   https://strangways2022.github.io/wordle-solver/script.js?v=20251231
   </script>
   -->
