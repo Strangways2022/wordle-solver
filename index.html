@@ -161,5 +161,16 @@
   <footer>
     <small>© 2025 Wordle Solver</small>
   </footer>
+  <!-- INLINE TEST: should fire immediately when the HTML is parsed -->
+<script>
+  alert('Inline test: HTML is parsed and inline scripts run.');
+  const btn = document.getElementById('submit-btn');
+  if (!btn) {
+    alert('Inline test: #submit-btn NOT found');
+  } else {
+    alert('Inline test: #submit-btn found');
+    btn.addEventListener('click', () => alert('Inline test: Submit clicked'));
+  }
+</script>
 </body>
 </html>
