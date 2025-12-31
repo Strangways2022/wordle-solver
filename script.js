@@ -3,7 +3,7 @@
 const DEBUG_ALERTS = false;
 function dbg(msg) { if (DEBUG_ALERTS) alert(msg); }
 
-// Run only after DOM is ready (defer in HTML ensures this fires after parsing)
+// Run after DOM is parsed (use script.js</script> in HTML)
 document.addEventListener('DOMContentLoaded', () => {
   dbg('Initializing Wordle Solver…');
 
@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const countEl        = document.getElementById('count');
   const statusEl       = document.getElementById('status');
   const formEl         = document.getElementById('guess-form');
+  // Optional: file input fallback (add <input type="file" id="dict-file" accept=".txt"> in HTML if you want)
+  const dictFileInput  = document.getElementById('dict-file');
 
   // Guard: ensure the page contains the required elements
   const missing = [
@@ -53,26 +55,32 @@ document.addEventListener('DOMContentLoaded', () => {
   resetBtn.disabled = true;
 
   // ----------------------------
-  // Dictionary loader (safe for GitHub Project Pages)
+  // Dictionary loader (robust for GitHub Pages)
   // ----------------------------
   async function loadDictionary() {
     try {
       statusEl.textContent = 'Loading word list…';
 
-      // Use RELATIVE path + cache-buster so it resolves under /wordle-solver/
-      const url = './words.txt?ts=' + Date.now();
-      const fullUrl = new URL(url, location.href).href;
-      dbg('Fetching: ' + fullUrl);
+      // Ensure we resolve relative to the document's directory (with trailing slash)
+      const docDir = location.href.endsWith('/')
+        ? location.href
+        : location.href.replace(/[^/]+$/, ''); // strip last segment to get directory
+
+      const dictUrl = new URL('words.txt?ts=' + Date.now(), docDir).href;
+
+      dbg('Fetching: ' + dictUrl);
 
       const t0 = performance.now();
-      const res = await fetch(url, { cache: 'no-store' });
+      const res = await fetch(dictUrl, { cache: 'no-store' });
       const ms = Math.round(performance.now() - t0);
 
       if (!res.ok) {
-        const msg = `Failed to load ${fullUrl} (HTTP ${res.status}) in ${ms} ms`;
+        const msg = `Failed to load ${dictUrl} (HTTP ${res.status}) in ${ms} ms`;
         statusEl.textContent = msg;
-        dbg(msg);
-        alert(msg); // visible on mobile
+        console.error(msg);
+        if (!DEBUG_ALERTS) alert(msg);
+        // Optionally, load a tiny fallback list to keep the app usable:
+        // loadFallbackDictionary();
         return;
       }
 
@@ -83,6 +91,14 @@ document.addEventListener('DOMContentLoaded', () => {
         .split(/\r?\n/)
         .map(w => w.trim().toLowerCase())
         .filter(w => /^[a-z]{5}$/.test(w));
+
+      if (dictionary.length === 0) {
+        const msg = 'words.txt loaded but contained no valid 5-letter words.';
+        statusEl.textContent = msg;
+        console.warn(msg);
+        if (!DEBUG_ALERTS) alert(msg);
+        return;
+      }
 
       candidates = [...dictionary];
 
@@ -96,10 +112,43 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       const msg = `Load error: ${err.message}`;
       statusEl.textContent = msg;
-      dbg(msg);
-      alert(msg);
-      console.error(err);
+      console.error('Dictionary load failed:', err);
+      if (!DEBUG_ALERTS) alert(msg);
+      // Optionally, load a tiny fallback list:
+      // loadFallbackDictionary();
     }
+  }
+
+  // Optional fallback dictionary if fetch fails (uncomment the call above to use)
+  function loadFallbackDictionary() {
+    dictionary = ['crate','slate','trace','raise','thing','adieu','roate','later','stare','arise'];
+    candidates = [...dictionary];
+    statusEl.textContent = `Loaded fallback (${dictionary.length}) words.`;
+    renderCandidates();
+    submitBtn.disabled = false;
+    resetBtn.disabled = false;
+  }
+
+  // Optional: allow user-uploaded dictionary
+  if (dictFileInput) {
+    dictFileInput.addEventListener('change', async (e) => {
+      try {
+        const file = e.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        dictionary = text
+          .split(/\r?\n/)
+          .map(w => w.trim().toLowerCase())
+          .filter(w => /^[a-z]{5}$/.test(w));
+        candidates = [...dictionary];
+        statusEl.textContent = `Loaded ${dictionary.length} words from file.`;
+        renderCandidates();
+        submitBtn.disabled = false;
+        resetBtn.disabled = false;
+      } catch (err) {
+        alert('Failed to read dictionary file: ' + err.message);
+      }
+    });
   }
 
   // ----------------------------
@@ -119,6 +168,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (candidates.length > show.length) {
       const li = document.createElement('li');
       li.textContent = `… and ${candidates.length - show.length} more`;
+      listEl.appendChild(li);
+    }
+
+    if (candidates.length === 0) {
+      const li = document.createElement('li');
+      li.textContent = 'No candidates remain. Check your guesses/feedback.';
       listEl.appendChild(li);
     }
   }
@@ -149,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
       dbg('Validation error: ' + err);
       return;
     }
-    if (candidates.length === 0) {
+    if (candidates.length === 0 && dictionary.length === 0) {
       const msg = 'No candidates loaded. Did words.txt fail to load?';
       alert(msg);
       dbg(msg);
@@ -181,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ----------------------------
-  // Filtering logic (Wordle rules)
+  // Filtering logic (Wordle rules with duplicates)
   // ----------------------------
 
   /**
@@ -222,6 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ch = gArr[i];
       if (fArr[i] === 'X') {
         const allowed = ygCounts[ch] || 0;
+        // Use "largest cap seen" to avoid overwriting a stricter cap from another X
         maxLetterCounts[ch] = Math.max(maxLetterCounts[ch] ?? allowed, allowed);
       }
     }
