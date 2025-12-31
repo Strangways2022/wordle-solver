@@ -1,7 +1,10 @@
-// script.js — Wordle Solver for GitHub Pages (dictionary load fix)
-// Toggle this to true while debugging on mobile (Android Chrome will show alerts)
-const DEBUG_ALERTS = false;
-function dbg(msg) { if (DEBUG_ALERTS) alert(msg); }
+// script.js — Wordle Solver (with alerts built-in for testing)
+// Turn this ON while testing—alerts will show key steps and errors
+const DEBUG_ALERTS = true;
+function dbg(msg) {
+  console.log(msg);
+  if (DEBUG_ALERTS) alert(msg);
+}
 
 // Run after DOM is parsed (use script.js</script> in HTML)
 document.addEventListener('DOMContentLoaded', () => {
@@ -43,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const msg = 'Missing required elements: ' + missing.map(([id]) => id).join(', ');
     if (statusEl) statusEl.textContent = msg;
     console.error(msg);
-    dbg(msg);
+    alert(msg); // Always alert this critical issue
     return; // Stop: HTML must match IDs above
   }
 
@@ -60,15 +63,16 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadDictionary() {
     try {
       statusEl.textContent = 'Loading word list…';
+      dbg('Status: Loading word list…');
 
-      // Resolve relative to the document's directory (force trailing slash)
-      const docDir = location.href.endsWith('/')
+      // Prefer document.baseURI (honors ./ if present)
+      // Fallback: derive directory from location.href
+      const base = document.baseURI || (location.href.endsWith('/')
         ? location.href
-        : location.href.replace(/[^/]+$/, ''); // strip last segment to get directory
+        : location.href.replace(/[^/]+$/, ''));
 
-      const dictUrl = new URL('words.txt?ts=' + Date.now(), docDir).href;
-
-      dbg('Fetching: ' + dictUrl);
+      const dictUrl = new URL('words.txt?ts=' + Date.now(), base).href;
+      dbg('Fetching dictionary from: ' + dictUrl);
 
       const t0 = performance.now();
       const res = await fetch(dictUrl, { cache: 'no-store' });
@@ -78,13 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const msg = `Failed to load ${dictUrl} (HTTP ${res.status}) in ${ms} ms`;
         statusEl.textContent = msg;
         console.error(msg);
-        if (!DEBUG_ALERTS) alert(msg);
-        // Optionally, load a tiny fallback list to keep the app usable:
-        // loadFallbackDictionary();
+        alert(msg); // Alert fetch failure
         return;
       }
 
       const text = await res.text();
+      const contentType = res.headers.get('content-type') || 'unknown';
+      dbg(`Dictionary response OK (type=${contentType}, ~${text.length} chars)`);
 
       // Normalize: keep only clean 5-letter [a-z]
       dictionary = text
@@ -96,34 +100,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const msg = 'words.txt loaded but contained no valid 5-letter words.';
         statusEl.textContent = msg;
         console.warn(msg);
-        if (!DEBUG_ALERTS) alert(msg);
+        alert(msg); // Alert empty dictionary
         return;
       }
 
       candidates = [...dictionary];
 
-      statusEl.textContent = `Loaded ${dictionary.length} words in ${ms} ms.`;
-      dbg(statusEl.textContent);
+      const msg = `Loaded ${dictionary.length} words in ${ms} ms.`;
+      statusEl.textContent = msg;
+      dbg(msg);
 
       renderCandidates();
 
       submitBtn.disabled = false;
       resetBtn.disabled = false;
+      dbg('Buttons enabled.');
     } catch (err) {
       const msg = `Load error: ${err.message}`;
       statusEl.textContent = msg;
       console.error('Dictionary load failed:', err);
-      if (!DEBUG_ALERTS) alert(msg);
-      // Optionally, load a tiny fallback list:
-      // loadFallbackDictionary();
+      alert(msg); // Alert unexpected exception
     }
   }
 
-  // Optional fallback dictionary if fetch fails (uncomment the call above to use)
+  // Optional fallback dictionary if fetch fails (call manually if needed)
   function loadFallbackDictionary() {
     dictionary = ['crate','slate','trace','raise','thing','adieu','roate','later','stare','arise'];
     candidates = [...dictionary];
     statusEl.textContent = `Loaded fallback (${dictionary.length}) words.`;
+    dbg('Fallback dictionary loaded.');
     renderCandidates();
     submitBtn.disabled = false;
     resetBtn.disabled = false;
@@ -135,13 +140,16 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const file = e.target.files[0];
         if (!file) return;
+        dbg('Reading uploaded dictionary: ' + file.name);
         const text = await file.text();
         dictionary = text
           .split(/\r?\n/)
           .map(w => w.trim().toLowerCase())
           .filter(w => /^[a-z]{5}$/.test(w));
         candidates = [...dictionary];
-        statusEl.textContent = `Loaded ${dictionary.length} words from file.`;
+        const msg = `Loaded ${dictionary.length} words from file.`;
+        statusEl.textContent = msg;
+        dbg(msg);
         renderCandidates();
         submitBtn.disabled = false;
         resetBtn.disabled = false;
@@ -175,7 +183,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const li = document.createElement('li');
       li.textContent = 'No candidates remain. Check your guesses/feedback.';
       listEl.appendChild(li);
+      alert('No candidates remain after filtering.'); // Alert when empty
     }
+
+    dbg(`Rendered ${Math.min(candidates.length, 200)} items (total ${candidates.length}).`);
   }
 
   // ----------------------------
@@ -216,8 +227,9 @@ document.addEventListener('DOMContentLoaded', () => {
       candidates = applyGuessToCandidates(guess, feedback, candidates);
       const after = candidates.length;
 
-      statusEl.textContent = `Applied ${guess.toUpperCase()} / ${feedback}. Remaining: ${after}`;
-      dbg(`Filter applied: ${before} → ${after}`);
+      const msg = `Applied ${guess.toUpperCase()} / ${feedback}. Remaining: ${after} (was ${before}).`;
+      statusEl.textContent = msg;
+      dbg(msg);
 
       renderCandidates();
     } catch (e) {
@@ -231,7 +243,9 @@ document.addEventListener('DOMContentLoaded', () => {
     candidates = [...dictionary];
     guessInput.value = '';
     feedbackInput.value = '';
-    statusEl.textContent = `Reset. Loaded ${dictionary.length} words.`;
+    const msg = `Reset. Loaded ${dictionary.length} words.`;
+    statusEl.textContent = msg;
+    dbg(msg);
     renderCandidates();
   });
 
@@ -277,7 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ch = gArr[i];
       if (fArr[i] === 'X') {
         const allowed = ygCounts[ch] || 0;
-        // Use "largest cap seen" to avoid overwriting a stricter cap from another X
+        // Use "largest cap seen" across Xs in this guess
         maxLetterCounts[ch] = Math.max(maxLetterCounts[ch] ?? allowed, allowed);
       }
     }
@@ -287,14 +301,13 @@ document.addEventListener('DOMContentLoaded', () => {
       minLetterCounts[ch] = Math.max(minLetterCounts[ch] ?? cnt, cnt);
     }
 
-    if (DEBUG_ALERTS) {
-      alert(
-        'Constraints:\n' +
-        `Greens: ${JSON.stringify(requiredPositions)}\n` +
-        `Min: ${JSON.stringify(minLetterCounts)}\n` +
-        `Max: ${JSON.stringify(maxLetterCounts)}`
-      );
-    }
+    // Debug: show constraints
+    alert(
+      'Constraints derived from this guess:\n' +
+      `Greens (fixed positions): ${JSON.stringify(requiredPositions)}\n` +
+      `Min counts (Y+G totals): ${JSON.stringify(minLetterCounts)}\n` +
+      `Max counts (caps from X): ${JSON.stringify(maxLetterCounts)}`
+    );
 
     return words.filter(candidate => {
       // 1) Greens: must match at those positions
