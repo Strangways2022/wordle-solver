@@ -1,4 +1,4 @@
-// script.js — Wordle Solver for GitHub Pages
+// script.js — Wordle Solver for GitHub Pages (dictionary load fix)
 // Toggle this to true while debugging on mobile (Android Chrome will show alerts)
 const DEBUG_ALERTS = false;
 function dbg(msg) { if (DEBUG_ALERTS) alert(msg); }
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       statusEl.textContent = 'Loading word list…';
 
-      // Ensure we resolve relative to the document's directory (with trailing slash)
+      // Resolve relative to the document's directory (force trailing slash)
       const docDir = location.href.endsWith('/')
         ? location.href
         : location.href.replace(/[^/]+$/, ''); // strip last segment to get directory
