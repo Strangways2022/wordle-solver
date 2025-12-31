@@ -13,7 +13,9 @@ function tell(msg) {
   console.log(msg);
   if (DEBUG_ALERTS) alert(msg);
 }
-
+// In your JavaScript file (e.g., app.js)
+alert("✅ JS file is running from GitHub Pages!");
+console.log("✅ JS file executed successfully. Current script URL:", document.currentScript?.src);
 // Prove the external JS is loading
 tell('script.js: external file loaded.');
 
