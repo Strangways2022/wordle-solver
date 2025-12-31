@@ -6,9 +6,14 @@
   <title>Wordle Solver</title>
   <meta name="description" content="Enter a guess and Wordle-style feedback (G/Y/X) to narrow down 5-letter word candidates." />
 
-  <!-- Use ABSOLUTE paths to guarantee load on GitHub Pages -->
-  https://strangways2022.github.io/wordle-solver/script.js</script>
-  https://strangways2022.github.io/wordle-solver/style.css
+  <!-- Project site CSS: prefer relative path or absolute URL including /wordle-solver/ -->
+  <!-- Use ONE of the following hrefs and keep the cache-buster -->
+
+  <!-- Option A (recommended for project pages): relative path -->
+  ./style.css?v=20251231
+
+  <!-- Option B (absolute URL): -->
+  <!-- https://strangways2022.github.io/wordle-solver/style.css?v=20251231 -->
 
   <!-- Minimal built-in styles (optional if you have style.css) -->
   <style>
@@ -33,6 +38,10 @@
     ul#possible-words li { background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:.4rem .5rem; text-transform:lowercase; letter-spacing:.05em; }
     footer { max-width:720px; margin:1rem auto 0; color:#9aa0a6; text-align:center; }
     .hint { color:#9aa0a6; margin-top:.25rem; }
+    /* Diagnostic banner styles */
+    #diag { padding:.5rem .75rem; border-radius:8px; margin:.75rem 0; }
+    #diag.ok { background:#e8f5e9; color:#1b5e20; }
+    #diag.err { background:#ffebee; color:#b71c1c; }
   </style>
 </head>
 <body>
@@ -86,6 +95,7 @@
 
     <!-- Status + Results -->
     <section class="card status" aria-live="polite">
+      <div id="diag" class="">⏳ Checking external script load…</div>
       <p id="status">Loading word list…</p>
       <p><strong>Remaining:</strong> <span id="count" class="count">0</span></p>
 
@@ -105,5 +115,16 @@
     alert(btn ? 'Inline test: #submit-btn found' : 'Inline test: #submit-btn NOT found');
     btn && btn.addEventListener('click', () => alert('Inline test: Submit clicked'));
   </script>
+
+  <!-- External JS: prefer relative path for project pages; keep cache-buster -->
+  <!-- Option A (recommended): -->
+  ./script.js?v=20251231
+  </script>
+
+  <!-- Option B (absolute URL). Use this instead of Option A if you prefer: -->
+  <!--
+  https://strangways2022.github.io/wordle-solver/script.js?v=20251231
+  </script>
+  -->
 </body>
 </html>
