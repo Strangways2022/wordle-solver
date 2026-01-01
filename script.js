@@ -14,13 +14,13 @@ function tell(msg) {
   if (DEBUG_ALERTS) alert(msg);
 }
 // In your JavaScript file (e.g., app.js)
-alert("✅ JS file is running from GitHub Pages!");
+//alert("✅ JS file is running from GitHub Pages!");
 console.log("✅ JS file executed successfully. Current script URL:", document.currentScript?.src);
 // Prove the external JS is loading
-tell('script.js: external file loaded.');
+//tell('script.js: external file loaded.');
 
 document.addEventListener('DOMContentLoaded', () => {
-  tell('script.js: DOMContentLoaded fired.');
+  //tell('script.js: DOMContentLoaded fired.');
 
   // ========= DOM Elements =========
   const guessInput     = document.getElementById('guess');
@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderCandidates();
       submitBtn.disabled = false;
       resetBtn.disabled = false;
-      tell('Buttons enabled.');
+      //tell('Buttons enabled.');
 
       return true;
     } catch (err) {
@@ -283,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
       minLetterCounts[ch] = Math.max(minLetterCounts[ch] ?? cnt, cnt);
     }
 
-    tell(
+    //tell(
       'Constraints from guess:\n' +
       `Greens: ${JSON.stringify(requiredPositions)}\n` +
       `Min: ${JSON.stringify(minLetterCounts)}\n` +
@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ========= Handlers =========
   submitBtn.addEventListener('click', () => {
-    tell('Submit clicked.');
+    //tell('Submit clicked.');
     const guess    = (guessInput.value || '').trim().toLowerCase();
     const feedback = (feedbackInput.value || '').trim().toUpperCase();
 
@@ -356,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   resetBtn.addEventListener('click', () => {
-    tell('Reset clicked.');
+    //tell('Reset clicked.');
     candidates = [...dictionary];
     guessInput.value = '';
     feedbackInput.value = '';
