@@ -1,4 +1,3 @@
- 
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,15 +6,11 @@
   <title>Wordle Solver</title>
   <meta name="description" content="Enter a guess and Wordle-style feedback (G/Y/X) to narrow down 5-letter word candidates." />
 
-  <!-- CSS: choose ONE (relative is recommended for project pages) -->
-  
-  <!-- Or use absolute:
-  https://strangways2022.github.io/wordle-solver/style.css?v=20251231
-  -->
+  <!-- Project page CSS (optional if you have style.css) -->
+  ./style.css?v=20251231
 
-  <!-- Minimal built-in styles (kept so the page looks okay even if style.css fails) -->
   <style>
-    :root { color-scheme: light dark; --bg:#0b0c10; --fg:#e9ecef; --muted:#9aa0a6; --accent:#4caf50; --danger:#ef4444; --border:#2b2f36; }
+    :root { color-scheme: light dark; --bg:#0b0c10; --fg:#e9ecef; --muted:#9aa0a6; --accent:#10b981; --yellow:#f59e0b; --gray:#6b7280; --border:#374151; }
     body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; line-height:1.5; padding:2rem 1rem; background:#111827; color:#e5e7eb; }
     header { max-width:720px; margin:0 auto 1rem; }
     h1 { margin:0 0 .5rem; font-size:1.75rem; }
@@ -35,28 +30,28 @@
     ul#possible-words { list-style:none; padding-left:0; margin:.5rem 0 0 0; display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:.25rem .5rem; }
     ul#possible-words li { background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:.4rem .5rem; text-transform:lowercase; letter-spacing:.05em; }
     footer { max-width:720px; margin:1rem auto 0; color:#9aa0a6; text-align:center; }
-    .hint { color:#9aa0a6; margin-top:.25rem; }
+    .hint { color:#9ca3af; margin-top:.25rem; }
 
-    /* Diagnostic banner */
-    #diag { padding:.6rem .8rem; border-radius:8px; margin:.75rem 0; }
-    #diag.ok { background:#e8f5e9; color:#1b5e20; }
-    #diag.err { background:#ffebee; color:#b71c1c; }
+    /* ===== Current State Board ===== */
+    .state-title { font-weight:700; margin-bottom:.25rem; }
+    .state-board { display:flex; gap:.5rem; }
+    .state-box {
+      width:48px; height:48px; border-radius:8px;
+      border:2px solid var(--border); display:flex; align-items:center; justify-content:center;
+      font-weight:800; font-size:1.25rem; letter-spacing:.08em; text-transform:uppercase;
+      background:#0b1220; color:#e5e7eb;
+    }
+    .state-box.green { background:var(--accent); color:#062b1e; border-color:#059669; }
+    .chip-row { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.5rem; }
+    .chip {
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:.25rem .5rem; border-radius:999px; font-weight:700; letter-spacing:.08em;
+      text-transform:uppercase; border:1px solid var(--border);
+    }
+    .chip.yellow { background:var(--yellow); color:#1f2937; border-color:#c27807; }
+    .chip.gray { background:var(--gray); color:#111827; border-color:#4b5563; }
+    .chip-empty { color:#9aa0a6; background:transparent; border-style:dashed; }
   </style>
-
-  <!-- Show runtime errors visibly on mobile -->
-  <script>
-    window.onerror = function (msg, src, line, col) {
-      const box = document.getElementById("diag");
-      if (box) {
-        box.className = "err";
-        box.textContent = "❌ Runtime error: " + msg +
-          (src ? " at " + src : "") +
-          (line ? " (" + line + ":" + col + ")" : "");
-      }
-      alert("Error: " + msg);
-      console.log("Error details:", { msg, src, line, col });
-    };
-  </script>
 </head>
 <body>
   <header>
@@ -65,6 +60,26 @@
   </header>
 
   <main class="app">
+    <!-- ===== Current State (new) ===== -->
+    <section class="card" aria-live="polite">
+      <div class="state-title">Current state</div>
+      <div id="state-board" class="state-board" role="group" aria-label="Known positions">
+        <div class="state-box" data-index="0" aria-label="Position 1"></div>
+        <div class="state-box" data-index="1" aria-label="Position 2"></div>
+        <div class="state-box" data-index="2" aria-label="Position 3"></div>
+        <div class="state-box" data-index="3" aria-label="Position 4"></div>
+        <div class="state-box" data-index="4" aria-label="Position 5"></div>
+      </div>
+      <div class="chip-row" aria-label="Yellow letters">
+        <span id="yellow-label" class="hint">Yellow letters:</span>
+        <div id="yellow-chips" class="chip-row"></div>
+      </div>
+      <div class="chip-row" aria-label="Gray letters">
+        <span id="gray-label" class="hint">Gray letters:</span>
+        <div id="gray-chips" class="chip-row"></div>
+      </div>
+    </section>
+
     <!-- Inputs -->
     <section class="card">
       <form id="guess-form" novalidate>
@@ -109,7 +124,6 @@
 
     <!-- Status + Results -->
     <section class="card status" aria-live="polite">
-      <div id="diag">⏳ Checking external script load…</div>
       <p id="status">Loading word list…</p>
       <p><strong>Remaining:</strong> <span id="count" class="count">0</span></p>
 
@@ -119,25 +133,10 @@
   </main>
 
   <footer>
-    <small>© 2025</small>
+    <small>© 2025 Wordle Solver</small>
   </footer>
 
-  <!-- Inline test so you can see something immediately on Android -->
-  <!-- <script>
-    alert('Inline test: HTML parsed and inline script running.');
-    const btn = document.getElementById('submit-btn');
-    alert(btn ? 'Inline test: #submit-btn found' : 'Inline test: #submit-btn NOT found');
-    btn && btn.addEventListener('click', () => alert('Inline test: Submit clicked'));
-  </script> --!>
-
-  <!-- External JS include (choose ONE). Keep the cache-buster and bump it when you update -->
-  <script src="./script.js">
-    //./script.js?v=20251231
-  </script>
-
-  <!-- Or absolute URL:
-  https://strangways2022.github.io/wordle-solver/script.js?v=20251231
-  </script>
-  -->
+  <!-- Your external JS -->
+  ./script.js?v=20251231</script>
 </body>
 </html>
