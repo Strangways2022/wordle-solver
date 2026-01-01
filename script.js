@@ -1,4 +1,5 @@
 // script.js — Wordle Solver (GitHub Pages) with validated, lenient dictionary loader and testing alerts
+// + Prevent re-guessing the same word; persist previous guesses in localStorage
 
 /**
  * ===== CONFIG =====
@@ -9,19 +10,24 @@ const SILENT_VALIDATION_ALERTS = true;   // true = no popups from validation rep
 const SHOW_INVALID_SAMPLE_COUNT = 10;    // how many invalid lines to show in alerts (when SILENT_VALIDATION_ALERTS=false)
 const DICT_ORIGIN = 'https://strangways2022.github.io/wordle-solver/'; // your Pages origin
 
+// Enforce that guesses must be present in the dictionary
+const REQUIRE_GUESS_IN_DICTIONARY = true;
+
+// NEW: control duplicate-guess handling/persistence
+const PREVENT_DUPLICATE_GUESSES = true;                 // block guesses already entered before
+const PERSIST_PREVIOUS_GUESSES = true;                  // save to localStorage for next visit
+const CLEAR_PREVIOUS_GUESSES_ON_RESET = false;          // if true, Reset also clears history
+const STORAGE_KEY_PREV = 'wordle_solver_prev_guesses_v1'; // localStorage key
+
 function tell(msg) {
   console.log(msg);
   if (DEBUG_ALERTS) alert(msg);
 }
-// In your JavaScript file (e.g., app.js)
-//alert("✅ JS file is running from GitHub Pages!");
+
+// Minimal startup log
 console.log("✅ JS file executed successfully. Current script URL:", document.currentScript?.src);
-// Prove the external JS is loading
-//tell('script.js: external file loaded.');
 
 document.addEventListener('DOMContentLoaded', () => {
-  //tell('script.js: DOMContentLoaded fired.');
-
   // ========= DOM Elements =========
   const guessInput     = document.getElementById('guess');
   const feedbackInput  = document.getElementById('feedback');
@@ -59,8 +65,53 @@ document.addEventListener('DOMContentLoaded', () => {
   resetBtn.disabled = true;
 
   // ========= App State =========
-  let dictionary = [];   // All valid 5-letter words (normalized and deduped)
-  let candidates = [];   // Current filtered list
+  let dictionary = [];       // All valid 5-letter words (normalized and deduped)
+  let dictionarySet = null;  // Fast membership lookup
+  let candidates = [];       // Current filtered list
+
+  // NEW: user's previous guesses
+  let previousGuesses = [];           // array of strings (lowercase)
+  let previousGuessesSet = new Set(); // O(1) lookups
+
+  // ===== Previous guesses persistence =====
+  function loadPreviousGuesses() {
+    if (!PERSIST_PREVIOUS_GUESSES) return;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_PREV);
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        // Keep only valid 5-letter lowercase entries
+        previousGuesses = arr
+          .map(x => String(x).trim().toLowerCase())
+          .filter(x => /^[a-z]{5}$/.test(x));
+        previousGuessesSet = new Set(previousGuesses);
+        console.log(`Loaded ${previousGuesses.length} previous guesses from storage.`);
+      }
+    } catch (e) {
+      console.warn('Could not load previous guesses:', e);
+    }
+  }
+
+  function savePreviousGuesses() {
+    if (!PERSIST_PREVIOUS_GUESSES) return;
+    try {
+      localStorage.setItem(STORAGE_KEY_PREV, JSON.stringify(previousGuesses));
+    } catch (e) {
+      console.warn('Could not save previous guesses:', e);
+    }
+  }
+
+  function clearPreviousGuesses() {
+    previousGuesses = [];
+    previousGuessesSet.clear();
+    if (PERSIST_PREVIOUS_GUESSES) {
+      try { localStorage.removeItem(STORAGE_KEY_PREV); } catch (e) {}
+    }
+  }
+
+  // Initialize previous guesses from storage (if any)
+  loadPreviousGuesses();
 
   /**
    * Build absolute dictionary URL with cache buster (avoids GH Pages caching quirks).
@@ -77,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
    *  - Lowercase all words
    *  - Skip empty lines
    *  - Deduplicate valid entries
-   * Returns { valid: string[], invalid: string[], stats: {…} }
    */
   function validateAndNormalizeWords(text) {
     const clean = text.replace(/^\uFEFF/, '');  // strip BOM if present
@@ -125,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /**
    * ===== DICTIONARY LOADER (VALIDATED & LENIENT) =====
-   * Fetches words.txt, validates, skips invalid lines, dedupes, and reports counts.
    */
   async function loadDictionary() {
     function report(msg) {
@@ -137,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const dictUrl = buildDictUrl();
       report('Loading word list…');
-      tell('Fetching dictionary from: ' + dictUrl);
+      console.log('Fetching dictionary from:', dictUrl);
 
       const t0 = performance.now();
       const res = await fetch(dictUrl, { cache: 'no-store' });
@@ -145,13 +194,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!res.ok) {
         report(`Failed to load ${dictUrl} (HTTP ${res.status}) in ${ms} ms`);
-        // Optional: keep app usable with a tiny fallback list
+        // Optional: keep app usable with a fallback list
         // loadFallbackDictionary();
         return false;
       }
 
       const text = await res.text();
-      tell(`Dictionary response OK (chars=${text.length}).`);
+      console.log(`Dictionary response OK (chars=${text.length}).`);
 
       const { valid, invalid, stats } = validateAndNormalizeWords(text);
 
@@ -165,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       dictionary = valid;
+      dictionarySet = new Set(dictionary);
       candidates = [...dictionary];
 
       report(
@@ -181,13 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
       renderCandidates();
       submitBtn.disabled = false;
       resetBtn.disabled = false;
-      //tell('Buttons enabled.');
 
       return true;
     } catch (err) {
       console.error('Dictionary load failed:', err);
       statusEl.textContent = `Load error: ${err.message}`;
-      if (!DEBUG_ALERTS) alert(`Load error: ${err.message}`);
+      if (!SILENT_VALIDATION_ALERTS) alert(`Load error: ${err.message}`);
       // Optional: loadFallbackDictionary();
       return false;
     }
@@ -198,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   function loadFallbackDictionary() {
     dictionary = ['crate','slate','trace','raise','thing','adieu','roate','stare','arise','later'];
+    dictionarySet = new Set(dictionary);
     candidates = [...dictionary];
     statusEl.textContent = `Loaded fallback (${dictionary.length}) words.`;
     renderCandidates();
@@ -225,9 +275,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const li = document.createElement('li');
       li.textContent = 'No candidates remain. Check your guesses/feedback.';
       listEl.appendChild(li);
-      tell('No candidates remain after filtering.');
+      console.log('No candidates remain after filtering.');
     }
-    tell(`Rendered ${Math.min(candidates.length, 200)} items (total ${candidates.length}).`);
+    console.log(`Rendered ${Math.min(candidates.length, 200)} items (total ${candidates.length}).`);
   }
 
   // ========= Validation =========
@@ -237,15 +287,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
 
+  function isGuessInDictionary(guess) {
+    if (!dictionarySet) return false;
+    return dictionarySet.has(guess);
+  }
+
   // ========= Filtering Logic (Wordle rules incl. duplicates) =========
-  /**
-   * Apply a single guess+feedback across the candidate list.
-   * Feedback:
-   *  - G: correct letter at position
-   *  - Y: letter present but wrong position
-   *  - X: letter not present; when guess includes duplicates, X caps total count
-   *      to the number of Y+G for that letter in THIS guess.
-   */
   function applyGuessToCandidates(guess, feedback, words) {
     const gArr = guess.split('');
     const fArr = feedback.split('');
@@ -273,22 +320,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const ch = gArr[i];
       if (fArr[i] === 'X') {
         const allowed = ygCounts[ch] || 0;
-        // Use the largest cap seen across multiple Xs in the same guess
         maxLetterCounts[ch] = Math.max(maxLetterCounts[ch] ?? allowed, allowed);
       }
     }
 
-    // Minimum counts come from total Y+G per letter
+    // Minimum counts from total Y+G per letter
     for (const [ch, cnt] of Object.entries(ygCounts)) {
       minLetterCounts[ch] = Math.max(minLetterCounts[ch] ?? cnt, cnt);
     }
-
-    //tell(
-     // 'Constraints from guess:\n' +
-      //`Greens: ${JSON.stringify(requiredPositions)}\n` +
-      //`Min: ${JSON.stringify(minLetterCounts)}\n` +
-      //`Max: ${JSON.stringify(maxLetterCounts)}`
-   // );
 
     return words.filter(candidate => {
       // 1) Greens at exact positions
@@ -333,36 +372,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ========= Handlers =========
   submitBtn.addEventListener('click', () => {
-    //tell('Submit clicked.');
     const guess    = (guessInput.value || '').trim().toLowerCase();
     const feedback = (feedbackInput.value || '').trim().toUpperCase();
 
+    // 1) Format validation
     const err = validateInputs(guess, feedback);
-    if (err) { tell('Validation error: ' + err); alert(err); return; }
+    if (err) {
+      statusEl.textContent = '❌ ' + err;
+      if (!SILENT_VALIDATION_ALERTS) alert(err);
+      return;
+    }
+
+    // 2) Dictionary membership (optional)
+    if (REQUIRE_GUESS_IN_DICTIONARY && !isGuessInDictionary(guess)) {
+      const msg = `❌ "${guess.toUpperCase()}" is not in the word list. Enter a valid 5-letter word.`;
+      statusEl.textContent = msg;
+      if (!SILENT_VALIDATION_ALERTS) alert(msg);
+      return;
+    }
+
+    // 3) Duplicate guess prevention
+    if (PREVENT_DUPLICATE_GUESSES && previousGuessesSet.has(guess)) {
+      const msg = `❌ You've already guessed "${guess.toUpperCase()}". Try a new word.`;
+      statusEl.textContent = msg;
+      if (!SILENT_VALIDATION_ALERTS) alert(msg);
+      return;
+    }
 
     if (candidates.length === 0 && dictionary.length === 0) {
       const msg = 'No candidates loaded. Did words.txt fail to load?';
-      tell(msg); alert(msg); return;
+      statusEl.textContent = '❌ ' + msg;
+      if (!SILENT_VALIDATION_ALERTS) alert(msg);
+      console.warn(msg);
+      return;
     }
 
     const before = candidates.length;
     candidates = applyGuessToCandidates(guess, feedback, candidates);
     const after = candidates.length;
 
+    // Record this guess in history (for duplicate prevention next time)
+    previousGuesses.push(guess);
+    previousGuessesSet.add(guess);
+    savePreviousGuesses();
+
     const msg = `Applied ${guess.toUpperCase()} / ${feedback}. Remaining: ${after} (was ${before}).`;
     statusEl.textContent = msg;
-    tell(msg);
+    console.log(msg);
+
+    // Optional: clear inputs for convenience
+    guessInput.value = '';
+    feedbackInput.value = '';
+    guessInput.focus();
+
     renderCandidates();
   });
 
   resetBtn.addEventListener('click', () => {
-    //tell('Reset clicked.');
     candidates = [...dictionary];
     guessInput.value = '';
     feedbackInput.value = '';
-    const msg = `Reset. Loaded ${dictionary.length} words.`;
+
+    if (CLEAR_PREVIOUS_GUESSES_ON_RESET) {
+      clearPreviousGuesses();
+      console.log('Previous guesses cleared due to reset.');
+    }
+
+    const msg = `Reset. Loaded ${dictionary.length} words.` +
+      (CLEAR_PREVIOUS_GUESSES_ON_RESET ? ' (Guess history cleared.)' : '');
     statusEl.textContent = msg;
-    tell(msg);
+    console.log(msg);
     renderCandidates();
   });
 
