@@ -1,3 +1,4 @@
+ 
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,35 +8,26 @@
   <meta name="description" content="Enter a guess and Wordle-style feedback (G/Y/X) to narrow down 5-letter word candidates." />
 
   <!-- CSS: choose ONE (relative is recommended for project pages) -->
-  <!-- If you have a separate stylesheet, uncomment this: -->
-  <!-- ./style.css?v=20251231 -->
-
+  
   <!-- Or use absolute:
   https://strangways2022.github.io/wordle-solver/style.css?v=20251231
   -->
 
   <!-- Minimal built-in styles (kept so the page looks okay even if style.css fails) -->
   <style>
-    :root {
-      color-scheme: light dark;
-      --bg:#0b0c10; --fg:#e9ecef; --muted:#9aa0a6;
-      --accent:#10b981; /* green for confirmed position */
-      --yellow:#f59e0b; /* yellow letters present elsewhere */
-      --gray:#6b7280;   /* gray letters absent */
-      --border:#374151;
-    }
+    :root { color-scheme: light dark; --bg:#0b0c10; --fg:#e9ecef; --muted:#9aa0a6; --accent:#4caf50; --danger:#ef4444; --border:#2b2f36; }
     body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; line-height:1.5; padding:2rem 1rem; background:#111827; color:#e5e7eb; }
     header { max-width:720px; margin:0 auto 1rem; }
     h1 { margin:0 0 .5rem; font-size:1.75rem; }
     .app { max-width:720px; margin:0 auto; display:grid; gap:1rem; }
-    .card { background:#1f2937; border:1px solid var(--border); border-radius:12px; padding:1rem; }
+    .card { background:#1f2937; border:1px solid #374151; border-radius:12px; padding:1rem; }
     label { display:block; font-weight:600; margin-bottom:.25rem; }
-    input[type="text"] { width:100%; padding:.6rem .75rem; border-radius:10px; border:1px solid var(--border); background:#111827; color:#e5e7eb; letter-spacing:.08em; text-transform:uppercase; }
+    input[type="text"] { width:100%; padding:.6rem .75rem; border-radius:10px; border:1px solid #374151; background:#111827; color:#e5e7eb; letter-spacing:.08em; text-transform:uppercase; }
     small { color:#9ca3af; }
     .row { display:grid; gap:.35rem; margin-bottom:.75rem; }
     .actions { display:flex; gap:.5rem; flex-wrap:wrap; }
-    button { appearance:none; border:1px solid var(--border); background:#111827; color:#e5e7eb; padding:.6rem .9rem; border-radius:10px; cursor:pointer; font-weight:600; }
-    button.primary { background:var(--accent); border-color:#059669; color:#062b1e; }
+    button { appearance:none; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:.6rem .9rem; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.primary { background:#10b981; border-color:#059669; color:#062b1e; }
     button[disabled] { opacity:.6; cursor:not-allowed; }
     .status { display:grid; gap:.5rem; }
     .status p { margin:0; }
@@ -49,27 +41,6 @@
     #diag { padding:.6rem .8rem; border-radius:8px; margin:.75rem 0; }
     #diag.ok { background:#e8f5e9; color:#1b5e20; }
     #diag.err { background:#ffebee; color:#b71c1c; }
-
-    /* ===== Current State Board (new) ===== */
-    .state-title { font-weight:700; margin-bottom:.25rem; }
-    .state-board { display:flex; gap:.5rem; }
-    .state-box {
-      width:48px; height:48px; border-radius:8px;
-      border:2px solid var(--border); display:flex; align-items:center; justify-content:center;
-      font-weight:800; font-size:1.25rem; letter-spacing:.08em; text-transform:uppercase;
-      background:#0b1220; color:#e5e7eb;
-    }
-    .state-box.green { background:var(--accent); color:#062b1e; border-color:#059669; }
-
-    .chip-row { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.5rem; }
-    .chip {
-      display:inline-flex; align-items:center; justify-content:center;
-      padding:.25rem .5rem; border-radius:999px; font-weight:700; letter-spacing:.08em;
-      text-transform:uppercase; border:1px solid var(--border);
-    }
-    .chip.yellow { background:var(--yellow); color:#1f2937; border-color:#c27807; }
-    .chip.gray   { background:var(--gray);   color:#111827; border-color:#4b5563; }
-    .chip-empty  { color:#9aa0a6; background:transparent; border-style:dashed; }
   </style>
 
   <!-- Show runtime errors visibly on mobile -->
@@ -94,26 +65,6 @@
   </header>
 
   <main class="app">
-    <!-- ===== Current State (new) — placed above Guess ===== -->
-    <section class="card" aria-live="polite">
-      <div class="state-title">Current state</div>
-      <div id="state-board" class="state-board" role="group" aria-label="Known positions">
-        <div class="state-box" data-index="0" aria-label="Position 1"></div>
-        <div class="state-box" data-index="1" aria-label="Position 2"></div>
-        <div class="state-box" data-index="2" aria-label="Position 3"></div>
-        <div class="state-box" data-index="3" aria-label="Position 4"></div>
-        <div class="state-box" data-index="4" aria-label="Position 5"></div>
-      </div>
-      <div class="chip-row" aria-label="Yellow letters">
-        <span class="hint">Yellow letters:</span>
-        <div id="yellow-chips" class="chip-row"></div>
-      </div>
-      <div class="chip-row" aria-label="Gray letters">
-        <span class="hint">Gray letters:</span>
-        <div id="gray-chips" class="chip-row"></div>
-      </div>
-    </section>
-
     <!-- Inputs -->
     <section class="card">
       <form id="guess-form" novalidate>
@@ -171,11 +122,22 @@
     <small>© 2025</small>
   </footer>
 
-  <!-- External JS include (project page safe). Use defer; bump cache-buster when you update -->
- <script>script.js?v=20251231</script>
+  <!-- Inline test so you can see something immediately on Android -->
+  <!-- <script>
+    alert('Inline test: HTML parsed and inline script running.');
+    const btn = document.getElementById('submit-btn');
+    alert(btn ? 'Inline test: #submit-btn found' : 'Inline test: #submit-btn NOT found');
+    btn && btn.addEventListener('click', () => alert('Inline test: Submit clicked'));
+  </script> --!>
+
+  <!-- External JS include (choose ONE). Keep the cache-buster and bump it when you update -->
+  <script src="./script.js">
+    //./script.js?v=20251231
+  </script>
 
   <!-- Or absolute URL:
-  https://strangways2022.github.io/wordle-solver/script.js?v=20251231</script>
+  https://strangways2022.github.io/wordle-solver/script.js?v=20251231
+  </script>
   -->
 </body>
 </html>
