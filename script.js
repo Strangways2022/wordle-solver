@@ -1,21 +1,27 @@
-// script.js — Wordle Solver (GitHub Pages) with validated, lenient dictionary loader and testing alerts
-// + Prevent re-guessing the same word; persist previous guesses in localStorage
+
+// script.js — Wordle Solver (GitHub Pages)
+// - Valid word check (guess must be in dictionary)
+// - Prevent duplicate guesses (optional persistence via localStorage)
+// - "Current state" UI: 5 green boxes + yellow/gray chips
+// - Validated, lenient dictionary loader
 
 /**
  * ===== CONFIG =====
  * Toggle these while testing/production.
  */
-const DEBUG_ALERTS = true;               // show alerts for key steps (set false for production)
-const SILENT_VALIDATION_ALERTS = true;   // true = no popups from validation reporting
-const SHOW_INVALID_SAMPLE_COUNT = 10;    // how many invalid lines to show in alerts (when SILENT_VALIDATION_ALERTS=false)
-const DICT_ORIGIN = 'https://strangways2022.github.io/wordle-solver/'; // your Pages origin
+const DEBUG_ALERTS = false;              // show alerts for internal steps (prefer false for mobile)
+const SILENT_VALIDATION_ALERTS = true;  // true = no popups for validation messages (status text only)
+const SHOW_INVALID_SAMPLE_COUNT = 10;   // how many invalid lines to show in alerts if SILENT_VALIDATION_ALERTS=false
 
-// Enforce that guesses must be present in the dictionary
+// Your GitHub Pages project origin (used to fetch words.txt with an absolute URL)
+const DICT_ORIGIN = 'https://strangways2022.github.io/wordle-solver/';
+
+// Enforce that guesses must exist in the dictionary (words.txt)
 const REQUIRE_GUESS_IN_DICTIONARY = true;
 
-// NEW: control duplicate-guess handling/persistence
-const PREVENT_DUPLICATE_GUESSES = true;                 // block guesses already entered before
-const PERSIST_PREVIOUS_GUESSES = true;                  // save to localStorage for next visit
+// Duplicate-guess handling & persistence
+const PREVENT_DUPLICATE_GUESSES = true;                 // block repeats
+const PERSIST_PREVIOUS_GUESSES = true;                  // persist in localStorage
 const CLEAR_PREVIOUS_GUESSES_ON_RESET = false;          // if true, Reset also clears history
 const STORAGE_KEY_PREV = 'wordle_solver_prev_guesses_v1'; // localStorage key
 
@@ -24,8 +30,8 @@ function tell(msg) {
   if (DEBUG_ALERTS) alert(msg);
 }
 
-// Minimal startup log
-console.log("✅ JS file executed successfully. Current script URL:", document.currentScript?.src);
+// Minimal startup info
+console.log("✅ script.js loaded. currentScript:", document.currentScript?.src);
 
 document.addEventListener('DOMContentLoaded', () => {
   // ========= DOM Elements =========
@@ -38,6 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusEl       = document.getElementById('status');
   const formEl         = document.getElementById('guess-form');
 
+  // Current state board elements (5 boxes + yellow/gray chips)
+  const stateBoxes     = Array.from(document.querySelectorAll('.state-box'));
+  const yellowChipsEl  = document.getElementById('yellow-chips');
+  const grayChipsEl    = document.getElementById('gray-chips');
+
   // Sanity check: all required elements present?
   const missing = [
     ['#guess', guessInput],
@@ -48,6 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ['#count', countEl],
     ['#status', statusEl],
     ['#guess-form', formEl],
+    ['.state-box x5', stateBoxes.length === 5 ? {} : null],
+    ['#yellow-chips', yellowChipsEl],
+    ['#gray-chips', grayChipsEl],
   ].filter(([id, el]) => !el);
 
   if (missing.length) {
@@ -65,13 +79,20 @@ document.addEventListener('DOMContentLoaded', () => {
   resetBtn.disabled = true;
 
   // ========= App State =========
-  let dictionary = [];       // All valid 5-letter words (normalized and deduped)
-  let dictionarySet = null;  // Fast membership lookup
+  let dictionary = [];       // All valid 5-letter words (normalized & deduped)
+  let dictionarySet = null;  // Fast membership lookup (Set)
   let candidates = [];       // Current filtered list
 
-  // NEW: user's previous guesses
-  let previousGuesses = [];           // array of strings (lowercase)
-  let previousGuessesSet = new Set(); // O(1) lookups
+  // Previous guesses (for duplicate prevention)
+  let previousGuesses = [];            // array of lowercase strings
+  let previousGuessesSet = new Set();  // O(1) duplicate checks
+
+  // ===== Known letter UI state =====
+  const knownState = {
+    greens: [null, null, null, null, null],  // fixed letters by position
+    yellows: new Set(),                      // letters known to be present somewhere
+    grays: new Set(),                        // letters known to be absent
+  };
 
   // ===== Previous guesses persistence =====
   function loadPreviousGuesses() {
@@ -81,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!raw) return;
       const arr = JSON.parse(raw);
       if (Array.isArray(arr)) {
-        // Keep only valid 5-letter lowercase entries
         previousGuesses = arr
           .map(x => String(x).trim().toLowerCase())
           .filter(x => /^[a-z]{5}$/.test(x));
@@ -92,7 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Could not load previous guesses:', e);
     }
   }
-
   function savePreviousGuesses() {
     if (!PERSIST_PREVIOUS_GUESSES) return;
     try {
@@ -101,7 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Could not save previous guesses:', e);
     }
   }
-
   function clearPreviousGuesses() {
     previousGuesses = [];
     previousGuessesSet.clear();
@@ -128,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
    *  - Lowercase all words
    *  - Skip empty lines
    *  - Deduplicate valid entries
+   * Returns { valid: string[], invalid: string[], stats: {…} }
    */
   function validateAndNormalizeWords(text) {
     const clean = text.replace(/^\uFEFF/, '');  // strip BOM if present
@@ -229,8 +248,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       renderCandidates();
+
+      // Enable actions & render initial state board
       submitBtn.disabled = false;
       resetBtn.disabled = false;
+      renderStateBoard();
 
       return true;
     } catch (err) {
@@ -253,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCandidates();
     submitBtn.disabled = false;
     resetBtn.disabled = false;
+    renderStateBoard();
   }
 
   // ========= Rendering =========
@@ -286,13 +309,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!/^[GYXgyx]{5}$/.test(feedback)) return 'Feedback must be 5 characters using G/Y/X.';
     return null;
   }
-
   function isGuessInDictionary(guess) {
     if (!dictionarySet) return false;
     return dictionarySet.has(guess);
   }
 
   // ========= Filtering Logic (Wordle rules incl. duplicates) =========
+  /**
+   * Apply a single guess+feedback across the candidate list.
+   * Feedback:
+   *  - G: correct letter at position
+   *  - Y: letter present but wrong position
+   *  - X: letter not present; when guess includes duplicates, X caps total count
+   *      to the number of Y+G for that letter in THIS guess.
+   */
   function applyGuessToCandidates(guess, feedback, words) {
     const gArr = guess.split('');
     const fArr = feedback.split('');
@@ -340,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let i = 0; i < 5; i++) {
         if (fArr[i] === 'Y') {
           const ch = gArr[i];
-          if (candidate[i] === ch) return false;   // not allowed at same position
+          if (candidate[i] === ch) return false;     // not allowed at same position
           if (!candidate.includes(ch)) return false; // must exist elsewhere
         }
       }
@@ -368,6 +398,100 @@ document.addEventListener('DOMContentLoaded', () => {
     const map = {};
     for (const ch of str) map[ch] = (map[ch] || 0) + 1;
     return map;
+  }
+
+  // ===== Current state board: renderer & updater =====
+  function renderStateBoard() {
+    // 5 boxes: show greens where known
+    stateBoxes.forEach((box, i) => {
+      const ch = knownState.greens[i];
+      box.textContent = ch ? ch.toUpperCase() : '';
+      box.classList.toggle('green', !!ch);
+    });
+
+    // Yellow chips
+    yellowChipsEl.innerHTML = '';
+    if (knownState.yellows.size === 0) {
+      const s = document.createElement('span');
+      s.className = 'chip chip-empty';
+      s.textContent = '—';
+      yellowChipsEl.appendChild(s);
+    } else {
+      [...knownState.yellows].sort().forEach(ch => {
+        const chip = document.createElement('span');
+        chip.className = 'chip yellow';
+        chip.textContent = ch.toUpperCase();
+        yellowChipsEl.appendChild(chip);
+      });
+    }
+
+    // Gray chips
+    grayChipsEl.innerHTML = '';
+    if (knownState.grays.size === 0) {
+      const s = document.createElement('span');
+      s.className = 'chip chip-empty';
+      s.textContent = '—';
+      grayChipsEl.appendChild(s);
+    } else {
+      [...knownState.grays].sort().forEach(ch => {
+        const chip = document.createElement('span');
+        chip.className = 'chip gray';
+        chip.textContent = ch.toUpperCase();
+        grayChipsEl.appendChild(chip);
+      });
+    }
+  }
+
+  /**
+   * Merge a guess+feedback into the known UI state.
+   * Green: fix at position.
+   * Yellow: letter present (not position-bound).
+   * Gray: letter absent (only if the letter has NO green/yellow in that guess and not known elsewhere).
+   * Note: This UI keeps it simple for duplicates; solver logic already handles caps.
+   */
+  function updateKnownStateFromGuess(guess, feedback) {
+    const gArr = guess.split('');
+    const fArr = feedback.split('');
+
+    // Count Y+G per letter within this guess (avoid gray if letter has Y/G elsewhere in the same guess)
+    const ygCounts = {};
+    for (let i = 0; i < 5; i++) {
+      const ch = gArr[i];
+      const fb = fArr[i];
+      if (fb === 'G' || fb === 'Y') {
+        ygCounts[ch] = (ygCounts[ch] || 0) + 1;
+      }
+    }
+
+    // Apply greens & yellows
+    for (let i = 0; i < 5; i++) {
+      const ch = gArr[i];
+      const fb = fArr[i];
+
+      if (fb === 'G') {
+        knownState.greens[i] = ch;
+        knownState.yellows.delete(ch);
+        knownState.grays.delete(ch);
+      } else if (fb === 'Y') {
+        knownState.yellows.add(ch);
+        knownState.grays.delete(ch);
+      }
+    }
+
+    // Apply grays (only if not seen as Y/G in this guess and not already known green/yellow)
+    for (let i = 0; i < 5; i++) {
+      const ch = gArr[i];
+      if (fArr[i] === 'X') {
+        const hasYorGInThisGuess = (ygCounts[ch] || 0) > 0;
+        const isGreenSomewhere = knownState.greens.includes(ch);
+        const isYellowKnown = knownState.yellows.has(ch);
+        if (!hasYorGInThisGuess && !isGreenSomewhere && !isYellowKnown) {
+          knownState.grays.add(ch);
+        }
+      }
+    }
+
+    renderStateBoard();
   }
 
   // ========= Handlers =========
@@ -416,6 +540,9 @@ document.addEventListener('DOMContentLoaded', () => {
     previousGuessesSet.add(guess);
     savePreviousGuesses();
 
+    // Update the visual state board
+    updateKnownStateFromGuess(guess, feedback);
+
     const msg = `Applied ${guess.toUpperCase()} / ${feedback}. Remaining: ${after} (was ${before}).`;
     statusEl.textContent = msg;
     console.log(msg);
@@ -438,10 +565,17 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('Previous guesses cleared due to reset.');
     }
 
+    // Clear known UI state
+    knownState.greens = [null, null, null, null, null];
+    knownState.yellows.clear();
+    knownState.grays.clear();
+    renderStateBoard();
+
     const msg = `Reset. Loaded ${dictionary.length} words.` +
       (CLEAR_PREVIOUS_GUESSES_ON_RESET ? ' (Guess history cleared.)' : '');
     statusEl.textContent = msg;
     console.log(msg);
+
     renderCandidates();
   });
 
