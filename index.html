@@ -6,23 +6,36 @@
   <title>Wordle Solver</title>
   <meta name="description" content="Enter a guess and Wordle-style feedback (G/Y/X) to narrow down 5-letter word candidates." />
 
-  <!-- Project page CSS (optional if you have style.css) -->
-  ./style.css?v=20251231
+  <!-- CSS: choose ONE (relative is recommended for project pages) -->
+  <!-- If you have a separate stylesheet, uncomment this: -->
+  <!-- ./style.css?v=20251231 -->
 
+  <!-- Or use absolute:
+  https://strangways2022.github.io/wordle-solver/style.css?v=20251231
+  -->
+
+  <!-- Minimal built-in styles (kept so the page looks okay even if style.css fails) -->
   <style>
-    :root { color-scheme: light dark; --bg:#0b0c10; --fg:#e9ecef; --muted:#9aa0a6; --accent:#10b981; --yellow:#f59e0b; --gray:#6b7280; --border:#374151; }
+    :root {
+      color-scheme: light dark;
+      --bg:#0b0c10; --fg:#e9ecef; --muted:#9aa0a6;
+      --accent:#10b981; /* green for confirmed position */
+      --yellow:#f59e0b; /* yellow letters present elsewhere */
+      --gray:#6b7280;   /* gray letters absent */
+      --border:#374151;
+    }
     body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; line-height:1.5; padding:2rem 1rem; background:#111827; color:#e5e7eb; }
     header { max-width:720px; margin:0 auto 1rem; }
     h1 { margin:0 0 .5rem; font-size:1.75rem; }
     .app { max-width:720px; margin:0 auto; display:grid; gap:1rem; }
-    .card { background:#1f2937; border:1px solid #374151; border-radius:12px; padding:1rem; }
+    .card { background:#1f2937; border:1px solid var(--border); border-radius:12px; padding:1rem; }
     label { display:block; font-weight:600; margin-bottom:.25rem; }
-    input[type="text"] { width:100%; padding:.6rem .75rem; border-radius:10px; border:1px solid #374151; background:#111827; color:#e5e7eb; letter-spacing:.08em; text-transform:uppercase; }
+    input[type="text"] { width:100%; padding:.6rem .75rem; border-radius:10px; border:1px solid var(--border); background:#111827; color:#e5e7eb; letter-spacing:.08em; text-transform:uppercase; }
     small { color:#9ca3af; }
     .row { display:grid; gap:.35rem; margin-bottom:.75rem; }
     .actions { display:flex; gap:.5rem; flex-wrap:wrap; }
-    button { appearance:none; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:.6rem .9rem; border-radius:10px; cursor:pointer; font-weight:600; }
-    button.primary { background:#10b981; border-color:#059669; color:#062b1e; }
+    button { appearance:none; border:1px solid var(--border); background:#111827; color:#e5e7eb; padding:.6rem .9rem; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.primary { background:var(--accent); border-color:#059669; color:#062b1e; }
     button[disabled] { opacity:.6; cursor:not-allowed; }
     .status { display:grid; gap:.5rem; }
     .status p { margin:0; }
@@ -30,9 +43,14 @@
     ul#possible-words { list-style:none; padding-left:0; margin:.5rem 0 0 0; display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:.25rem .5rem; }
     ul#possible-words li { background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:.4rem .5rem; text-transform:lowercase; letter-spacing:.05em; }
     footer { max-width:720px; margin:1rem auto 0; color:#9aa0a6; text-align:center; }
-    .hint { color:#9ca3af; margin-top:.25rem; }
+    .hint { color:#9aa0a6; margin-top:.25rem; }
 
-    /* ===== Current State Board ===== */
+    /* Diagnostic banner */
+    #diag { padding:.6rem .8rem; border-radius:8px; margin:.75rem 0; }
+    #diag.ok { background:#e8f5e9; color:#1b5e20; }
+    #diag.err { background:#ffebee; color:#b71c1c; }
+
+    /* ===== Current State Board (new) ===== */
     .state-title { font-weight:700; margin-bottom:.25rem; }
     .state-board { display:flex; gap:.5rem; }
     .state-box {
@@ -42,6 +60,7 @@
       background:#0b1220; color:#e5e7eb;
     }
     .state-box.green { background:var(--accent); color:#062b1e; border-color:#059669; }
+
     .chip-row { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.5rem; }
     .chip {
       display:inline-flex; align-items:center; justify-content:center;
@@ -49,9 +68,24 @@
       text-transform:uppercase; border:1px solid var(--border);
     }
     .chip.yellow { background:var(--yellow); color:#1f2937; border-color:#c27807; }
-    .chip.gray { background:var(--gray); color:#111827; border-color:#4b5563; }
-    .chip-empty { color:#9aa0a6; background:transparent; border-style:dashed; }
+    .chip.gray   { background:var(--gray);   color:#111827; border-color:#4b5563; }
+    .chip-empty  { color:#9aa0a6; background:transparent; border-style:dashed; }
   </style>
+
+  <!-- Show runtime errors visibly on mobile -->
+  <script>
+    window.onerror = function (msg, src, line, col) {
+      const box = document.getElementById("diag");
+      if (box) {
+        box.className = "err";
+        box.textContent = "❌ Runtime error: " + msg +
+          (src ? " at " + src : "") +
+          (line ? " (" + line + ":" + col + ")" : "");
+      }
+      alert("Error: " + msg);
+      console.log("Error details:", { msg, src, line, col });
+    };
+  </script>
 </head>
 <body>
   <header>
@@ -60,7 +94,7 @@
   </header>
 
   <main class="app">
-    <!-- ===== Current State (new) ===== -->
+    <!-- ===== Current State (new) — placed above Guess ===== -->
     <section class="card" aria-live="polite">
       <div class="state-title">Current state</div>
       <div id="state-board" class="state-board" role="group" aria-label="Known positions">
@@ -71,11 +105,11 @@
         <div class="state-box" data-index="4" aria-label="Position 5"></div>
       </div>
       <div class="chip-row" aria-label="Yellow letters">
-        <span id="yellow-label" class="hint">Yellow letters:</span>
+        <span class="hint">Yellow letters:</span>
         <div id="yellow-chips" class="chip-row"></div>
       </div>
       <div class="chip-row" aria-label="Gray letters">
-        <span id="gray-label" class="hint">Gray letters:</span>
+        <span class="hint">Gray letters:</span>
         <div id="gray-chips" class="chip-row"></div>
       </div>
     </section>
@@ -124,6 +158,7 @@
 
     <!-- Status + Results -->
     <section class="card status" aria-live="polite">
+      <div id="diag">⏳ Checking external script load…</div>
       <p id="status">Loading word list…</p>
       <p><strong>Remaining:</strong> <span id="count" class="count">0</span></p>
 
@@ -133,10 +168,14 @@
   </main>
 
   <footer>
-    <small>© 2025 Wordle Solver</small>
+    <small>© 2025</small>
   </footer>
 
-  <!-- Your external JS -->
+  <!-- External JS include (project page safe). Use defer; bump cache-buster when you update -->
   ./script.js?v=20251231</script>
+
+  <!-- Or absolute URL:
+  https://strangways2022.github.io/wordle-solver/script.js?v=20251231</script>
+  -->
 </body>
 </html>
