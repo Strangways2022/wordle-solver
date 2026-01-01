@@ -1,5 +1,6 @@
 // script.js — Wordle Solver (GitHub Pages) with validated, lenient dictionary loader and testing alerts
 // + Prevent re-guessing the same word; persist previous guesses in localStorage
+// + Option B: Reset fully clears guess history (in-memory + localStorage)
 
 /**
  * ===== CONFIG =====
@@ -13,10 +14,10 @@ const DICT_ORIGIN = 'https://strangways2022.github.io/wordle-solver/'; // your P
 // Enforce that guesses must be present in the dictionary
 const REQUIRE_GUESS_IN_DICTIONARY = true;
 
-// NEW: control duplicate-guess handling/persistence
-const PREVENT_DUPLICATE_GUESSES = true;                 // block guesses already entered before
-const PERSIST_PREVIOUS_GUESSES = true;                  // save to localStorage for next visit
-const CLEAR_PREVIOUS_GUESSES_ON_RESET = false;          // if true, Reset also clears history
+// Duplicate-guess handling/persistence
+const PREVENT_DUPLICATE_GUESSES = true;                  // block guesses already entered before
+const PERSIST_PREVIOUS_GUESSES = true;                   // save to localStorage for next visit
+const CLEAR_PREVIOUS_GUESSES_ON_RESET = true;            // **Option B**: Reset clears history (in-memory + storage)
 const STORAGE_KEY_PREV = 'wordle_solver_prev_guesses_v1'; // localStorage key
 
 function tell(msg) {
@@ -69,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let dictionarySet = null;  // Fast membership lookup
   let candidates = [];       // Current filtered list
 
-  // NEW: user's previous guesses
+  // Previous guesses
   let previousGuesses = [];           // array of strings (lowercase)
   let previousGuessesSet = new Set(); // O(1) lookups
 
@@ -103,10 +104,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function clearPreviousGuesses() {
+    // Clear in-memory
     previousGuesses = [];
     previousGuessesSet.clear();
+    // Clear persistent storage
     if (PERSIST_PREVIOUS_GUESSES) {
-      try { localStorage.removeItem(STORAGE_KEY_PREV); } catch (e) {}
+      try {
+        localStorage.removeItem(STORAGE_KEY_PREV);
+        console.log('Cleared previous guesses from localStorage.');
+      } catch (e) {
+        console.warn('Could not clear previous guesses from storage:', e);
+      }
     }
   }
 
@@ -295,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ========= Filtering Logic (Wordle rules incl. duplicates) =========
   function applyGuessToCandidates(guess, feedback, words) {
     const gArr = guess.split('');
-    const fArr = feedback.split('');
+    const fArr = feedback.toUpperCase().split(''); // normalize to uppercase
 
     const requiredPositions = {};   // greens: pos -> letter
     const forbiddenPositions = {};  // yellows: pos -> Set(letter)
@@ -340,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let i = 0; i < 5; i++) {
         if (fArr[i] === 'Y') {
           const ch = gArr[i];
-          if (candidate[i] === ch) return false;   // not allowed at same position
+          if (candidate[i] === ch) return false;    // not allowed at same position
           if (!candidate.includes(ch)) return false; // must exist elsewhere
         }
       }
@@ -429,19 +437,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   resetBtn.addEventListener('click', () => {
+    // Rehydrate candidate list & clear inputs
     candidates = [...dictionary];
     guessInput.value = '';
     feedbackInput.value = '';
 
-    if (CLEAR_PREVIOUS_GUESSES_ON_RESET) {
-      clearPreviousGuesses();
-      console.log('Previous guesses cleared due to reset.');
-    }
+    // ===== Option B: clear both in-memory and localStorage history =====
+    clearPreviousGuesses();
 
-    const msg = `Reset. Loaded ${dictionary.length} words.` +
-      (CLEAR_PREVIOUS_GUESSES_ON_RESET ? ' (Guess history cleared.)' : '');
+    const msg = `Reset. Loaded ${dictionary.length} words. (Guess history fully cleared.)`;
     statusEl.textContent = msg;
     console.log(msg);
+
     renderCandidates();
   });
 
