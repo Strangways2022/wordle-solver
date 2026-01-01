@@ -284,11 +284,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     //tell(
-      'Constraints from guess:\n' +
-      `Greens: ${JSON.stringify(requiredPositions)}\n` +
-      `Min: ${JSON.stringify(minLetterCounts)}\n` +
-      `Max: ${JSON.stringify(maxLetterCounts)}`
-    );
+     // 'Constraints from guess:\n' +
+      //`Greens: ${JSON.stringify(requiredPositions)}\n` +
+      //`Min: ${JSON.stringify(minLetterCounts)}\n` +
+      //`Max: ${JSON.stringify(maxLetterCounts)}`
+   // );
 
     return words.filter(candidate => {
       // 1) Greens at exact positions
