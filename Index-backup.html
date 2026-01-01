@@ -1,0 +1,143 @@
+ 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wordle Solver</title>
+  <meta name="description" content="Enter a guess and Wordle-style feedback (G/Y/X) to narrow down 5-letter word candidates." />
+
+  <!-- CSS: choose ONE (relative is recommended for project pages) -->
+  
+  <!-- Or use absolute:
+  https://strangways2022.github.io/wordle-solver/style.css?v=20251231
+  -->
+
+  <!-- Minimal built-in styles (kept so the page looks okay even if style.css fails) -->
+  <style>
+    :root { color-scheme: light dark; --bg:#0b0c10; --fg:#e9ecef; --muted:#9aa0a6; --accent:#4caf50; --danger:#ef4444; --border:#2b2f36; }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; line-height:1.5; padding:2rem 1rem; background:#111827; color:#e5e7eb; }
+    header { max-width:720px; margin:0 auto 1rem; }
+    h1 { margin:0 0 .5rem; font-size:1.75rem; }
+    .app { max-width:720px; margin:0 auto; display:grid; gap:1rem; }
+    .card { background:#1f2937; border:1px solid #374151; border-radius:12px; padding:1rem; }
+    label { display:block; font-weight:600; margin-bottom:.25rem; }
+    input[type="text"] { width:100%; padding:.6rem .75rem; border-radius:10px; border:1px solid #374151; background:#111827; color:#e5e7eb; letter-spacing:.08em; text-transform:uppercase; }
+    small { color:#9ca3af; }
+    .row { display:grid; gap:.35rem; margin-bottom:.75rem; }
+    .actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+    button { appearance:none; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:.6rem .9rem; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.primary { background:#10b981; border-color:#059669; color:#062b1e; }
+    button[disabled] { opacity:.6; cursor:not-allowed; }
+    .status { display:grid; gap:.5rem; }
+    .status p { margin:0; }
+    .count { font-weight:700; }
+    ul#possible-words { list-style:none; padding-left:0; margin:.5rem 0 0 0; display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:.25rem .5rem; }
+    ul#possible-words li { background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:.4rem .5rem; text-transform:lowercase; letter-spacing:.05em; }
+    footer { max-width:720px; margin:1rem auto 0; color:#9aa0a6; text-align:center; }
+    .hint { color:#9aa0a6; margin-top:.25rem; }
+
+    /* Diagnostic banner */
+    #diag { padding:.6rem .8rem; border-radius:8px; margin:.75rem 0; }
+    #diag.ok { background:#e8f5e9; color:#1b5e20; }
+    #diag.err { background:#ffebee; color:#b71c1c; }
+  </style>
+
+  <!-- Show runtime errors visibly on mobile -->
+  <script>
+    window.onerror = function (msg, src, line, col) {
+      const box = document.getElementById("diag");
+      if (box) {
+        box.className = "err";
+        box.textContent = "❌ Runtime error: " + msg +
+          (src ? " at " + src : "") +
+          (line ? " (" + line + ":" + col + ")" : "");
+      }
+      alert("Error: " + msg);
+      console.log("Error details:", { msg, src, line, col });
+    };
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Wordle Solver</h1>
+    <p>Enter a guess and feedback (use <strong>G</strong>=green, <strong>Y</strong>=yellow, <strong>X</strong>=gray) to filter candidates.</p>
+  </header>
+
+  <main class="app">
+    <!-- Inputs -->
+    <section class="card">
+      <form id="guess-form" novalidate>
+        <div class="row">
+          <label for="guess">Guess</label>
+          <input
+            type="text"
+            id="guess"
+            name="guess"
+            maxlength="5"
+            autocomplete="off"
+            placeholder="e.g., CRATE"
+            aria-describedby="guess-help"
+            inputmode="text"
+            pattern="[A-Za-z]{5}"
+          />
+          <small id="guess-help" class="hint">Enter a 5-letter word (A–Z).</small>
+        </div>
+
+        <div class="row">
+          <label for="feedback">Feedback</label>
+          <input
+            type="text"
+            id="feedback"
+            name="feedback"
+            maxlength="5"
+            autocomplete="off"
+            placeholder="e.g., GYXGX"
+            aria-describedby="fb-help"
+            inputmode="text"
+            pattern="[GYXgyx]{5}"
+          />
+          <small id="fb-help" class="hint">Use letters: G (green), Y (yellow), X (gray).</small>
+        </div>
+
+        <div class="actions">
+          <button id="submit-btn" type="button" class="primary">Add Guess</button>
+          <button id="reset-btn" type="button">Reset</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Status + Results -->
+    <section class="card status" aria-live="polite">
+      <div id="diag">⏳ Checking external script load…</div>
+      <p id="status">Loading word list…</p>
+      <p><strong>Remaining:</strong> <span id="count" class="count">0</span></p>
+
+      <h2 style="margin:.25rem 0;">Possible Words</h2>
+      <ul id="possible-words"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <small>© 2025</small>
+  </footer>
+
+  <!-- Inline test so you can see something immediately on Android -->
+  <!-- <script>
+    alert('Inline test: HTML parsed and inline script running.');
+    const btn = document.getElementById('submit-btn');
+    alert(btn ? 'Inline test: #submit-btn found' : 'Inline test: #submit-btn NOT found');
+    btn && btn.addEventListener('click', () => alert('Inline test: Submit clicked'));
+  </script> --!>
+
+  <!-- External JS include (choose ONE). Keep the cache-buster and bump it when you update -->
+  <script src="./script.js">
+    //./script.js?v=20251231
+  </script>
+
+  <!-- Or absolute URL:
+  https://strangways2022.github.io/wordle-solver/script.js?v=20251231
+  </script>
+  -->
+</body>
+</html>
