@@ -1,9 +1,8 @@
-// script.js — Wordle Solver (GitHub Pages) with validated, lenient dictionary loader,
-// colored board for previous guesses (Wordle-style), duplicate prevention, and reset clears history.
+// script.js — Wordle Solver with validated dictionary loader,
+// Wordle-style board (5 cols × max 6 rows), duplicate prevention, and reset clears history.
 
 /**
  * ===== CONFIG =====
- * Toggle these while testing/production.
  */
 const DEBUG_ALERTS = true;               // show alerts for key steps (set false for production)
 const SILENT_VALIDATION_ALERTS = true;   // true = no popups from validation reporting
@@ -21,6 +20,10 @@ const CLEAR_PREVIOUS_GUESSES_ON_RESET = true;              // Reset clears histo
 // Storage keys
 const STORAGE_KEY_PREV_V2 = 'wordle_solver_prev_guesses_v2'; // [{guess, feedback}]
 const STORAGE_KEY_PREV_V1 = 'wordle_solver_prev_guesses_v1'; // [guess, guess, …] (legacy)
+
+// Board constraints
+const MAX_ROWS = 6;
+const WORD_LEN = 5;
 
 function tell(msg) {
   console.log(msg);
@@ -52,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['#count', countEl],
     ['#status', statusEl],
     ['#guess-form', formEl],
-    // NOTE: board is optional, do not fail if absent
+    // board is optional (if not present, rendering is skipped)
   ].filter(([id, el]) => !el);
 
   if (missing.length) {
@@ -116,6 +119,12 @@ document.addEventListener('DOMContentLoaded', () => {
             feedback: String(obj?.feedback || '').trim().toUpperCase(),
           }))
           .filter(e => isValidGuessWord(e.guess) && isValidFeedback(e.feedback));
+
+        // Enforce max 6 rows (keep the most recent MAX_ROWS)
+        if (previousGuesses.length > MAX_ROWS) {
+          previousGuesses = previousGuesses.slice(-MAX_ROWS);
+        }
+
         previousGuessesSet = new Set(previousGuesses.map(e => e.guess));
         console.log(`Loaded ${previousGuesses.length} previous entries from storage.`);
       }
@@ -321,37 +330,49 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`Rendered ${Math.min(candidates.length, 200)} items (total ${candidates.length}).`);
   }
 
-  // ===== Wordle Board (previous guesses) =====
-  function classForFeedbackChar(ch) {
+  // ===== Wordle Board (5 columns × max 6 rows) =====
+  function feedbackClass(ch) {
+    // Map feedback to tile classes used in your CSS: green / yellow / gray
     switch (ch) {
-      case 'G': return 'tile--green';
-      case 'Y': return 'tile--yellow';
-      case 'X': default: return 'tile--gray';
+      case 'G': return 'green';
+      case 'Y': return 'yellow';
+      case 'X': default: return 'gray';
     }
   }
 
   function renderBoard() {
     if (!boardEl) return; // allow HTML without board
     boardEl.innerHTML = '';
-    if (!previousGuesses.length) {
-      const empty = document.createElement('div');
-      empty.className = 'board__empty';
-      empty.textContent = 'No guesses yet.';
-      boardEl.appendChild(empty);
-      return;
-    }
 
-    for (const { guess, feedback } of previousGuesses) {
+    // Ensure we only show the last MAX_ROWS guesses
+    const rows = previousGuesses.slice(-MAX_ROWS);
+
+    // Render existing rows
+    for (const { guess, feedback } of rows) {
       const row = document.createElement('div');
-      row.className = 'row';
+      row.className = 'board-row';
 
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < WORD_LEN; i++) {
         const tile = document.createElement('div');
-        tile.className = `tile ${classForFeedbackChar(feedback[i])}`;
-        tile.textContent = guess[i].toUpperCase();
+        tile.className = `tile ${feedbackClass(feedback[i])}`;
+        tile.textContent = (guess[i] || '').toUpperCase();
         row.appendChild(tile);
       }
       boardEl.appendChild(row);
+    }
+
+    // Render empty rows to fill up to MAX_ROWS (optional, for Wordle look)
+    const emptyRowsToAdd = MAX_ROWS - rows.length;
+    for (let r = 0; r < emptyRowsToAdd; r++) {
+      const emptyRow = document.createElement('div');
+      emptyRow.className = 'board-row';
+      for (let i = 0; i < WORD_LEN; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile gray'; // neutral background; no letter
+        tile.textContent = '';
+        emptyRow.appendChild(tile);
+      }
+      boardEl.appendChild(emptyRow);
     }
   }
 
@@ -486,8 +507,12 @@ document.addEventListener('DOMContentLoaded', () => {
     candidates = applyGuessToCandidates(guess, feedback, candidates);
     const after = candidates.length;
 
-    // Record this guess+feedback in history (for duplicate prevention and board)
+    // Record this guess+feedback in history
     previousGuesses.push({ guess, feedback });
+    // Enforce max 6 rows (keep newest 6)
+    if (previousGuesses.length > MAX_ROWS) {
+      previousGuesses = previousGuesses.slice(-MAX_ROWS);
+    }
     previousGuessesSet.add(guess);
     savePreviousGuesses();
 
@@ -495,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
     statusEl.textContent = msg;
     console.log(msg);
 
-    // Optional: clear inputs for convenience
+    // Clear inputs
     guessInput.value = '';
     feedbackInput.value = '';
     guessInput.focus();
@@ -505,12 +530,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   resetBtn.addEventListener('click', () => {
-    // Rehydrate candidate list & clear inputs
+    // Restore candidate list & clear inputs
     candidates = [...dictionary];
     guessInput.value = '';
     feedbackInput.value = '';
 
-    // Clear both in-memory and localStorage history
+    // Clear history
     if (CLEAR_PREVIOUS_GUESSES_ON_RESET) clearPreviousGuesses();
 
     const msg = `Reset. Loaded ${dictionary.length} words. (Guess history fully cleared.)`;
@@ -522,7 +547,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ========= Kick off =========
-  // Render any loaded history before dictionary completes, so UI doesn't look empty.
   renderBoard();
   loadDictionary();
 });
