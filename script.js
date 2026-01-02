@@ -1,6 +1,5 @@
-// script.js — Wordle Solver (GitHub Pages) with validated, lenient dictionary loader and testing alerts
-// + Prevent re-guessing the same word; persist previous guesses in localStorage
-// + Option B: Reset fully clears guess history (in-memory + localStorage)
+// script.js — Wordle Solver (GitHub Pages) with validated, lenient dictionary loader,
+// colored board for previous guesses (Wordle-style), duplicate prevention, and reset clears history.
 
 /**
  * ===== CONFIG =====
@@ -15,10 +14,13 @@ const DICT_ORIGIN = 'https://strangways2022.github.io/wordle-solver/'; // your P
 const REQUIRE_GUESS_IN_DICTIONARY = true;
 
 // Duplicate-guess handling/persistence
-const PREVENT_DUPLICATE_GUESSES = true;                  // block guesses already entered before
-const PERSIST_PREVIOUS_GUESSES = true;                   // save to localStorage for next visit
-const CLEAR_PREVIOUS_GUESSES_ON_RESET = true;            // **Option B**: Reset clears history (in-memory + storage)
-const STORAGE_KEY_PREV = 'wordle_solver_prev_guesses_v1'; // localStorage key
+const PREVENT_DUPLICATE_GUESSES = true;                    // block guesses already entered before
+const PERSIST_PREVIOUS_GUESSES = true;                     // save to localStorage for next visit
+const CLEAR_PREVIOUS_GUESSES_ON_RESET = true;              // Reset clears history (in-memory + storage)
+
+// Storage keys
+const STORAGE_KEY_PREV_V2 = 'wordle_solver_prev_guesses_v2'; // [{guess, feedback}]
+const STORAGE_KEY_PREV_V1 = 'wordle_solver_prev_guesses_v1'; // [guess, guess, …] (legacy)
 
 function tell(msg) {
   console.log(msg);
@@ -38,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const countEl        = document.getElementById('count');
   const statusEl       = document.getElementById('status');
   const formEl         = document.getElementById('guess-form');
+  const boardEl        = document.getElementById('board'); // optional; script works even if absent
 
   // Sanity check: all required elements present?
   const missing = [
@@ -49,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['#count', countEl],
     ['#status', statusEl],
     ['#guess-form', formEl],
+    // NOTE: board is optional, do not fail if absent
   ].filter(([id, el]) => !el);
 
   if (missing.length) {
@@ -70,24 +74,50 @@ document.addEventListener('DOMContentLoaded', () => {
   let dictionarySet = null;  // Fast membership lookup
   let candidates = [];       // Current filtered list
 
-  // Previous guesses
-  let previousGuesses = [];           // array of strings (lowercase)
-  let previousGuessesSet = new Set(); // O(1) lookups
+  // Previous guesses (v2 format)
+  /** @type {{guess:string, feedback:string}[]} */
+  let previousGuesses = [];           // array of objects
+  let previousGuessesSet = new Set(); // O(1) lookups (by guess)
 
   // ===== Previous guesses persistence =====
+  function isValidGuessWord(w) {
+    return /^[a-z]{5}$/.test(w);
+  }
+  function isValidFeedback(fb) {
+    return /^[GYX]{5}$/.test(fb);
+  }
+
   function loadPreviousGuesses() {
     if (!PERSIST_PREVIOUS_GUESSES) return;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_PREV);
-      if (!raw) return;
-      const arr = JSON.parse(raw);
+      // Prefer v2; fallback to v1 if present
+      let raw = localStorage.getItem(STORAGE_KEY_PREV_V2);
+      let arr = raw ? JSON.parse(raw) : null;
+
+      if (!arr) {
+        const rawV1 = localStorage.getItem(STORAGE_KEY_PREV_V1);
+        if (rawV1) {
+          const arrV1 = JSON.parse(rawV1);
+          if (Array.isArray(arrV1)) {
+            // Upgrade legacy: keep guesses, default feedback to "XXXXX" (unknown -> gray)
+            arr = arrV1
+              .map(x => String(x).trim().toLowerCase())
+              .filter(isValidGuessWord)
+              .map(guess => ({ guess, feedback: 'XXXXX' }));
+            console.log(`Upgraded ${arr.length} legacy guesses from v1 storage.`);
+          }
+        }
+      }
+
       if (Array.isArray(arr)) {
-        // Keep only valid 5-letter lowercase entries
         previousGuesses = arr
-          .map(x => String(x).trim().toLowerCase())
-          .filter(x => /^[a-z]{5}$/.test(x));
-        previousGuessesSet = new Set(previousGuesses);
-        console.log(`Loaded ${previousGuesses.length} previous guesses from storage.`);
+          .map(obj => ({
+            guess: String(obj?.guess || '').trim().toLowerCase(),
+            feedback: String(obj?.feedback || '').trim().toUpperCase(),
+          }))
+          .filter(e => isValidGuessWord(e.guess) && isValidFeedback(e.feedback));
+        previousGuessesSet = new Set(previousGuesses.map(e => e.guess));
+        console.log(`Loaded ${previousGuesses.length} previous entries from storage.`);
       }
     } catch (e) {
       console.warn('Could not load previous guesses:', e);
@@ -97,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function savePreviousGuesses() {
     if (!PERSIST_PREVIOUS_GUESSES) return;
     try {
-      localStorage.setItem(STORAGE_KEY_PREV, JSON.stringify(previousGuesses));
+      localStorage.setItem(STORAGE_KEY_PREV_V2, JSON.stringify(previousGuesses));
     } catch (e) {
       console.warn('Could not save previous guesses:', e);
     }
@@ -107,11 +137,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Clear in-memory
     previousGuesses = [];
     previousGuessesSet.clear();
-    // Clear persistent storage
+    // Clear persistent storage (v2 + legacy v1)
     if (PERSIST_PREVIOUS_GUESSES) {
       try {
-        localStorage.removeItem(STORAGE_KEY_PREV);
-        console.log('Cleared previous guesses from localStorage.');
+        localStorage.removeItem(STORAGE_KEY_PREV_V2);
+        localStorage.removeItem(STORAGE_KEY_PREV_V1);
+        console.log('Cleared previous guesses from localStorage (v2 + v1).');
       } catch (e) {
         console.warn('Could not clear previous guesses from storage:', e);
       }
@@ -236,6 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(`Sample invalid lines (${sample.length}/${invalid.length}):\n` + sample.join('\n'));
       }
 
+      renderBoard();
       renderCandidates();
       submitBtn.disabled = false;
       resetBtn.disabled = false;
@@ -258,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dictionarySet = new Set(dictionary);
     candidates = [...dictionary];
     statusEl.textContent = `Loaded fallback (${dictionary.length}) words.`;
+    renderBoard();
     renderCandidates();
     submitBtn.disabled = false;
     resetBtn.disabled = false;
@@ -286,6 +319,40 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('No candidates remain after filtering.');
     }
     console.log(`Rendered ${Math.min(candidates.length, 200)} items (total ${candidates.length}).`);
+  }
+
+  // ===== Wordle Board (previous guesses) =====
+  function classForFeedbackChar(ch) {
+    switch (ch) {
+      case 'G': return 'tile--green';
+      case 'Y': return 'tile--yellow';
+      case 'X': default: return 'tile--gray';
+    }
+  }
+
+  function renderBoard() {
+    if (!boardEl) return; // allow HTML without board
+    boardEl.innerHTML = '';
+    if (!previousGuesses.length) {
+      const empty = document.createElement('div');
+      empty.className = 'board__empty';
+      empty.textContent = 'No guesses yet.';
+      boardEl.appendChild(empty);
+      return;
+    }
+
+    for (const { guess, feedback } of previousGuesses) {
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      for (let i = 0; i < 5; i++) {
+        const tile = document.createElement('div');
+        tile.className = `tile ${classForFeedbackChar(feedback[i])}`;
+        tile.textContent = guess[i].toUpperCase();
+        row.appendChild(tile);
+      }
+      boardEl.appendChild(row);
+    }
   }
 
   // ========= Validation =========
@@ -419,8 +486,8 @@ document.addEventListener('DOMContentLoaded', () => {
     candidates = applyGuessToCandidates(guess, feedback, candidates);
     const after = candidates.length;
 
-    // Record this guess in history (for duplicate prevention next time)
-    previousGuesses.push(guess);
+    // Record this guess+feedback in history (for duplicate prevention and board)
+    previousGuesses.push({ guess, feedback });
     previousGuessesSet.add(guess);
     savePreviousGuesses();
 
@@ -433,6 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
     feedbackInput.value = '';
     guessInput.focus();
 
+    renderBoard();
     renderCandidates();
   });
 
@@ -442,16 +510,19 @@ document.addEventListener('DOMContentLoaded', () => {
     guessInput.value = '';
     feedbackInput.value = '';
 
-    // ===== Option B: clear both in-memory and localStorage history =====
-    clearPreviousGuesses();
+    // Clear both in-memory and localStorage history
+    if (CLEAR_PREVIOUS_GUESSES_ON_RESET) clearPreviousGuesses();
 
     const msg = `Reset. Loaded ${dictionary.length} words. (Guess history fully cleared.)`;
     statusEl.textContent = msg;
     console.log(msg);
 
+    renderBoard();
     renderCandidates();
   });
 
   // ========= Kick off =========
+  // Render any loaded history before dictionary completes, so UI doesn't look empty.
+  renderBoard();
   loadDictionary();
 });
