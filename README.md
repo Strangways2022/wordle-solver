@@ -10,4 +10,5 @@ a. only show the Wordle board as guesses are made for better screen fitting.
 b. allow an option for light/dark modes.
 
 Improvements
-** Update the word list to match both Wordle and Absurdle.
+1. Update the word list to match both Wordle and Absurdle to ensure all words are valid.
+2. Create a separate word list to validate for Wordle words to reduce the number of future possible words.
